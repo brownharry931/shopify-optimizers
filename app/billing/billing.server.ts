@@ -162,7 +162,14 @@ export async function getVerifiedSubscription(
 
 export async function reserveBillingRequest(shop: string) {
   return prisma.$transaction(async (transaction: Prisma.TransactionClient) => {
-    await transaction.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${shop}))`;
+    // Return an integer from the query so Prisma does not try to deserialize
+    // PostgreSQL's `void` return value from pg_advisory_xact_lock.
+    await transaction.$queryRaw`
+      WITH shop_lock AS MATERIALIZED (
+        SELECT pg_advisory_xact_lock(hashtext(${shop}))
+      )
+      SELECT 1 FROM shop_lock
+    `;
     const current = await transaction.subscription.findUnique({
       where: { shop },
     });

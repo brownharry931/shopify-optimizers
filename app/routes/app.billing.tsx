@@ -7,6 +7,7 @@ import {
 } from "react-router";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
+import styles from "../styles/billing.module.css";
 import { authenticate } from "../shopify.server";
 import {
   getVerifiedSubscription,
@@ -171,110 +172,227 @@ export default function BillingPage() {
   const canStart = !active && !pending && !unverifiedPending;
   const shopSlug = data.shop.replace(/\.myshopify\.com$/i, "");
   const shopBillingUrl = `https://admin.shopify.com/store/${encodeURIComponent(shopSlug)}/settings/billing`;
+  const statusText = statusLabel(subscription?.status, data.isVerified);
+  const badgeClass = active
+    ? `${styles.badge} ${styles.badgeActive}`
+    : pending
+      ? `${styles.badge} ${styles.badgePending}`
+      : styles.badge;
 
   return (
     <s-page heading="Billing & Subscription">
-      <s-section heading={data.plan.name}>
-        <s-paragraph>
-          <strong>
-            ${data.plan.price.toFixed(2)} {data.plan.currency}
-          </strong>{" "}
-          / month, billed every 30 days through Shopify.
-        </s-paragraph>
-        <s-paragraph>
-          Trial: {data.plan.trialDays} days. Payment approval and payment
-          details are handled by Shopify.
-        </s-paragraph>
-        {data.plan.testMode ? (
-          <s-paragraph>
-            Development billing test mode is on. Shopify test approvals do not
-            charge a real payment method.
-          </s-paragraph>
-        ) : null}
-      </s-section>
+      <main className={styles.billingPage}>
+        <header className={styles.planHero}>
+          <div className={styles.heroCopy}>
+            <p className={styles.eyebrow}>Shopify-managed subscription</p>
+            <h1 className={styles.title}>{data.plan.name}</h1>
+            <p className={styles.subtitle}>
+              A straightforward recurring plan. Review and approve the charge
+              securely in Shopify; Performance Pro never handles or stores
+              payment details.
+            </p>
+          </div>
+          <div className={styles.priceBlock}>
+            <p className={styles.price}>
+              ${data.plan.price.toFixed(2)} {data.plan.currency}
+              <small> / 30 days</small>
+            </p>
+            <p className={styles.priceNote}>
+              Recurring subscription · {data.plan.trialDays}-day trial
+            </p>
+          </div>
+          {data.plan.testMode ? (
+            <p className={styles.testNote}>
+              Development test mode is on. Shopify test approvals do not charge
+              a real payment method.
+            </p>
+          ) : null}
+        </header>
 
-      <s-section heading="Current subscription">
-        <s-paragraph>
-          Status:{" "}
-          <strong>{statusLabel(subscription?.status, data.isVerified)}</strong>
-        </s-paragraph>
-        {subscription ? (
-          <>
-            <s-paragraph>Plan: {subscription.planName}</s-paragraph>
-            <s-paragraph>
-              Shopify subscription created:{" "}
-              {dateLabel(subscription.shopifyCreatedAt)}
-            </s-paragraph>
-            <s-paragraph>
-              Current billing period ends: {dateLabel(subscription.expiresAt)}
-            </s-paragraph>
-          </>
+        {actionData?.error ? (
+          <div className={styles.error} role="alert">
+            <strong>We couldn’t complete that billing action.</strong>
+            <br />
+            {actionData.error}
+          </div>
+        ) : null}
+
+        <div className={styles.columns}>
+          <section className={styles.card} aria-labelledby="current-plan-title">
+            <h2 className={styles.cardTitle} id="current-plan-title">
+              Current subscription
+            </h2>
+            <div className={styles.statusRow}>
+              <span className={styles.statusLabel}>Shopify status</span>
+              <span className={badgeClass}>
+                <span aria-hidden="true">
+                  {active ? "●" : pending ? "◷" : "○"}
+                </span>
+                {statusText}
+              </span>
+            </div>
+            {subscription ? (
+              <>
+                <div className={styles.statusRow}>
+                  <span className={styles.statusLabel}>Plan</span>
+                  <span className={styles.statusValue}>
+                    {subscription.planName}
+                  </span>
+                </div>
+                <div className={styles.statusRow}>
+                  <span className={styles.statusLabel}>
+                    Subscription created
+                  </span>
+                  <span className={styles.statusValue}>
+                    {dateLabel(subscription.shopifyCreatedAt)}
+                  </span>
+                </div>
+                <div className={styles.statusRow}>
+                  <span className={styles.statusLabel}>
+                    Current period ends
+                  </span>
+                  <span className={styles.statusValue}>
+                    {dateLabel(subscription.expiresAt)}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <p className={styles.explainer}>
+                No subscription record is available for this shop yet.
+              </p>
+            )}
+            {!data.isVerified && subscription ? (
+              <p className={styles.explainer}>
+                Shopify did not confirm this saved record in the latest check.
+                It is not being treated as paid access.
+              </p>
+            ) : null}
+            <a
+              className={styles.link}
+              href={shopBillingUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Open Shopify billing settings ↗
+            </a>
+          </section>
+
+          <aside className={styles.card} aria-labelledby="plan-details-title">
+            <h2 className={styles.cardTitle} id="plan-details-title">
+              Plan details
+            </h2>
+            <ul className={styles.featureList}>
+              <li className={styles.feature}>
+                <span className={styles.featureIcon} aria-hidden="true">
+                  ✓
+                </span>
+                <span>
+                  Recurring charge is presented and managed by Shopify.
+                </span>
+              </li>
+              <li className={styles.feature}>
+                <span className={styles.featureIcon} aria-hidden="true">
+                  ✓
+                </span>
+                <span>
+                  No trial by default. Paid access requires a server-verified
+                  active subscription.
+                </span>
+              </li>
+              <li className={styles.feature}>
+                <span className={styles.featureIcon} aria-hidden="true">
+                  i
+                </span>
+                <span>
+                  The scanner and optimization controls are not available yet;
+                  no results are being claimed.
+                </span>
+              </li>
+            </ul>
+          </aside>
+        </div>
+
+        {active ? (
+          <section
+            className={styles.actionCard}
+            aria-label="Subscription actions"
+          >
+            <div>
+              <h2 className={styles.actionTitle}>
+                Your subscription is active
+              </h2>
+              <p className={styles.actionText}>
+                Shopify confirmed the active status. You can manage the
+                recurring agreement in Shopify or cancel it here.
+              </p>
+            </div>
+            <Form method="post">
+              <input type="hidden" name="intent" value="cancel" />
+              <button
+                className={styles.cancelButton}
+                type="submit"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "Please wait…" : "Cancel subscription"}
+              </button>
+            </Form>
+          </section>
+        ) : pending || unverifiedPending ? (
+          <section className={styles.actionCard} aria-label="Pending approval">
+            <div>
+              <h2 className={styles.actionTitle}>
+                {pending ? "Approval pending" : "Billing check needed"}
+              </h2>
+              <p className={styles.actionText}>
+                {pending
+                  ? "Shopify reports a pending approval. We will not create a second subscription."
+                  : "A prior approval attempt is recorded but not confirmed. Check Shopify before retrying; no duplicate request will be made here."}
+              </p>
+            </div>
+            <a
+              className={styles.primaryButton}
+              href={shopBillingUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Check Shopify billing
+            </a>
+          </section>
         ) : (
-          <s-paragraph>
-            No subscription record is currently available for this shop.
-          </s-paragraph>
+          <section
+            className={styles.actionCard}
+            aria-label="Start subscription"
+          >
+            <div>
+              <h2 className={styles.actionTitle}>Ready to continue?</h2>
+              <p className={styles.actionText}>
+                Shopify will show the approval screen before any subscription is
+                activated.
+              </p>
+            </div>
+            <Form method="post">
+              <input type="hidden" name="intent" value="start" />
+              <button
+                className={styles.primaryButton}
+                type="submit"
+                disabled={!canStart || isSubmitting}
+              >
+                {isSubmitting
+                  ? "Opening Shopify approval…"
+                  : subscription?.status === "CANCELLED"
+                    ? "Reactivate Performance Pro"
+                    : "Start Performance Pro"}
+              </button>
+            </Form>
+          </section>
         )}
-        {!data.isVerified && subscription ? (
-          <s-paragraph>
-            The saved record is not being treated as paid access; Shopify did
-            not return a matching subscription in this check.
-          </s-paragraph>
-        ) : null}
-        <s-link href={shopBillingUrl} target="_blank">
-          Manage Shopify billing
-        </s-link>
-      </s-section>
 
-      {actionData?.error ? (
-        <s-section heading="Billing action needs attention">
-          <s-paragraph>{actionData.error}</s-paragraph>
-        </s-section>
-      ) : null}
-
-      {active ? (
-        <s-section heading="Subscription actions">
-          <s-paragraph>
-            Performance Pro is active according to a server-side Shopify billing
-            check.
-          </s-paragraph>
-          <Form method="post">
-            <input type="hidden" name="intent" value="cancel" />
-            <button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Working…" : "Cancel subscription"}
-            </button>
-          </Form>
-        </s-section>
-      ) : pending || unverifiedPending ? (
-        <s-section
-          heading={pending ? "Approval pending" : "Billing check required"}
-        >
-          <s-paragraph>
-            {pending
-              ? "Shopify reports a pending subscription. No second subscription will be created."
-              : "A previous approval attempt is recorded, but Shopify has not confirmed its state. No duplicate subscription will be created from this screen."}
-          </s-paragraph>
-          <s-link href={shopBillingUrl} target="_blank">
-            Check Shopify billing settings
-          </s-link>
-        </s-section>
-      ) : (
-        <s-section heading="Start Performance Pro">
-          <s-paragraph>
-            Subscribe through Shopify’s secure approval flow. You can review the
-            recurring charge before approving.
-          </s-paragraph>
-          <Form method="post">
-            <input type="hidden" name="intent" value="start" />
-            <button type="submit" disabled={!canStart || isSubmitting}>
-              {isSubmitting
-                ? "Opening Shopify approval…"
-                : subscription?.status === "CANCELLED"
-                  ? "Reactivate Performance Pro"
-                  : "Start Performance Pro"}
-            </button>
-          </Form>
-        </s-section>
-      )}
+        <p className={styles.footnote}>
+          Subscription status is checked against Shopify on the server. This
+          page does not collect card details. Development test billing is not a
+          real charge.
+        </p>
+      </main>
     </s-page>
   );
 }
