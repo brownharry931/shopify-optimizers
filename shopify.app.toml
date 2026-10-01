@@ -1,0 +1,39 @@
+# Link this app to your Dev Dashboard app with `shopify app config link`.
+client_id = ""
+name = "Performance Pro"
+application_url = "https://example.invalid"
+embedded = true
+
+[build]
+automatically_update_urls_on_dev = true
+
+[access_scopes]
+# Least privilege. read_themes is required only for theme-aware onboarding.
+scopes = "read_themes"
+
+[auth]
+redirect_urls = ["https://example.invalid/auth/callback"]
+
+[webhooks]
+api_version = "2026-10"
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/uninstalled"
+  topics = ["app/uninstalled"]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/scopes_update"
+  topics = ["app/scopes_update"]
+
+  # Mandatory privacy-law compliance webhooks for public apps.
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/customers/data_request"
+  compliance_topics = ["customers/data_request"]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/customers/redact"
+  compliance_topics = ["customers/redact"]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/shop/redact"
+  compliance_topics = ["shop/redact"]

@@ -1,0 +1,23 @@
+{
+  "name": "Performance Pro Shopify App",
+  "dockerComposeFile": "compose.yaml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": {
+      "label": "Shopify app development",
+      "onAutoForward": "notify"
+    }
+  },
+  "postCreateCommand": "npm ci && npx prisma generate && npx prisma migrate deploy",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "Shopify.theme-check-vscode",
+        "dbaeumer.vscode-eslint",
+        "Prisma.prisma"
+      ]
+    }
+  }
+}

@@ -1,0 +1,87 @@
+.index {
+  box-sizing: border-box;
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 2rem 1.25rem;
+  color: #152b23;
+  background: radial-gradient(circle at 90% 10%, #daf4e6 0, transparent 34%), #f5f8f5;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.content {
+  box-sizing: border-box;
+  width: min(100%, 34rem);
+  padding: clamp(1.5rem, 6vw, 3.25rem);
+  border: 1px solid #dbe5df;
+  border-radius: 1.25rem;
+  background: #fff;
+  box-shadow: 0 1.5rem 4rem rgb(28 63 47 / 9%);
+}
+
+.eyebrow {
+  margin: 0 0 0.8rem;
+  color: #24794c;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.heading {
+  margin: 0;
+  font-size: clamp(2rem, 7vw, 3.2rem);
+  letter-spacing: -0.045em;
+  line-height: 1.05;
+}
+
+.text {
+  margin: 1rem 0 2rem;
+  color: #51635a;
+  font-size: 1.05rem;
+  line-height: 1.65;
+}
+
+.form {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.label {
+  color: #25372e;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 2.9rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid #b8c9bf;
+  border-radius: 0.55rem;
+  color: inherit;
+  font: inherit;
+}
+
+.input:focus-visible,
+.button:focus-visible {
+  outline: 3px solid #78c59a;
+  outline-offset: 2px;
+}
+
+.button {
+  min-height: 2.9rem;
+  padding: 0.75rem 1rem;
+  border: 0;
+  border-radius: 0.55rem;
+  color: #fff;
+  background: #176b41;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.button:hover {
+  background: #115833;
+}
