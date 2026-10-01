@@ -3,10 +3,14 @@
   "dockerComposeFile": "compose.yaml",
   "service": "app",
   "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
-  "forwardPorts": [3000],
+  "forwardPorts": [3000, 4040],
   "portsAttributes": {
     "3000": {
-      "label": "Shopify app development",
+      "label": "React Router development server",
+      "onAutoForward": "notify"
+    },
+    "4040": {
+      "label": "Shopify CLI app proxy",
       "onAutoForward": "notify"
     }
   },

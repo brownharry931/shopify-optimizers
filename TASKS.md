@@ -24,7 +24,9 @@ Tasks are marked complete only after implementation and the phase's applicable v
 - [x] Re-run `shopify app dev` in Codespaces and confirm the missing-locale Theme Check error is gone.
 - [x] Link the checked-in manifest to the user-provided public Shopify client ID; make its requested scopes (`read_themes`) and webhook API version (`2026-10`) explicit so Shopify CLI can apply the project configuration.
 - [x] Codespaces dev log now shows the real forwarded HTTPS app URL and only `read_themes` as the granted app scope.
-- [ ] Verify the local server responds on port 3000 and complete embedded app authentication/store GraphQL query after adding the concrete `shopify.web.toml` web process config.
+- [x] Add a concrete Shopify `shopify.web.toml` process config so Shopify CLI actually launches the React Router server; Codespaces logs now confirm the Prisma migration completes and the server starts on an ephemeral local port.
+- [x] Diagnose the remaining blank preview: the Codespaces app URL pointed to forwarded port 3000 while Shopify CLI's proxy is on port 4040.
+- [ ] Point the temporary Codespaces App URL/redirect to the public forwarded proxy address on port 4040, then confirm HTTP response, embedded dashboard, and real store GraphQL query.
 - [ ] Validate Prisma schema/migration and Shopify app/extension TOML in an environment able to download Prisma engines and authenticate Shopify CLI.
 - [ ] Link app to Shopify Dev Dashboard and start the HTTPS development tunnel through Shopify CLI.
 - [ ] Install on the merchant's development store; verify authentication, actual GraphQL query, app embed visibility, webhook delivery/HMAC, and uninstall cleanup.

@@ -24,7 +24,8 @@ pnpm-lock.yaml
 
 /extensions/*/dist
 
-# Ignore shopify files created during app dev
+# Ignore Shopify local config and generated dev files
+shopify.app.codespaces.toml
 .shopify/*
 .shopify.lock
 
