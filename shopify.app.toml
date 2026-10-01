@@ -1,5 +1,6 @@
-# Link this app to your Dev Dashboard app with `shopify app config link`.
-client_id = ""
+# Linked Shopify Dev Dashboard app. Client ID is public; never put the API secret here.
+# Shopify app config link can refresh this manifest from the dashboard.
+client_id = "16eafabab697a317d09a02b23048dc83"
 name = "Performance Pro"
 application_url = "https://example.invalid"
 embedded = true
