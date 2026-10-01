@@ -19,7 +19,10 @@ Tasks are marked complete only after implementation and the phase's applicable v
 - [x] Pin October 2026 Admin API with the installed Shopify SDK and add the Shopify CLI as a project dependency.
 - [x] Add a reproducible npm lockfile, a local PostgreSQL migration, and a GitHub Actions verification workflow.
 - [x] Add a Codespaces dev container with private PostgreSQL for browser-based development.
+- [x] Add the missing default locale file required by Shopify CLI's Theme App Extension scanner after the first Codespaces run reported `ENOENT`.
 - [x] `npm run typecheck`, `npm run lint`, `npm run build`, and `npm audit` passed in this sandbox; audit reports zero known vulnerabilities.
+- [ ] Re-run `shopify app dev` in Codespaces and confirm the missing-locale Theme Check error is gone.
+- [ ] Investigate Codespaces log mismatch: CLI reported `write_metaobject_definitions`, `write_metaobjects`, and `write_products` as auto-granted although checked-in config requests only `read_themes`; also reported App Home URL `https://example.com`. Verify remote Dev Dashboard scopes and development URL before trusting the preview.
 - [ ] Validate Prisma schema/migration and Shopify app/extension TOML in an environment able to download Prisma engines and authenticate Shopify CLI.
 - [ ] Link app to Shopify Dev Dashboard and start the HTTPS development tunnel through Shopify CLI.
 - [ ] Install on the merchant's development store; verify authentication, actual GraphQL query, app embed visibility, webhook delivery/HMAC, and uninstall cleanup.
