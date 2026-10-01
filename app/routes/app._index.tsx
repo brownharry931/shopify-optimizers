@@ -1,10 +1,57 @@
-import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
+import type {
+  HeadersFunction,
+  LinksFunction,
+  LoaderFunctionArgs,
+} from "react-router";
 import { useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { getVerifiedSubscription } from "../billing/billing.server";
 import { PLAN_CURRENCY, PLAN_NAME, PLAN_PRICE } from "../config/plan.server";
-import styles from "../styles/dashboard.module.css";
+import stylesheet from "../styles/dashboard.css?url";
+
+const styles = {
+  actions: "pp-actions",
+  badge: "pp-badge",
+  badgeGood: "pp-badgeGood",
+  badgePending: "pp-badgePending",
+  dashboard: "pp-dashboard",
+  eyebrow: "pp-eyebrow",
+  hero: "pp-hero",
+  heroCopy: "pp-heroCopy",
+  heroSummary: "pp-heroSummary",
+  heroText: "pp-heroText",
+  heroTitle: "pp-heroTitle",
+  liveDot: "pp-liveDot",
+  lowerGrid: "pp-lowerGrid",
+  meterGrid: "pp-meterGrid",
+  metricCard: "pp-metricCard",
+  metricCode: "pp-metricCode",
+  metricFoot: "pp-metricFoot",
+  metricTop: "pp-metricTop",
+  metricValue: "pp-metricValue",
+  notice: "pp-notice",
+  noticeMark: "pp-noticeMark",
+  panel: "pp-panel",
+  panelDescription: "pp-panelDescription",
+  panelLink: "pp-panelLink",
+  primaryAction: "pp-primaryAction",
+  secondaryAction: "pp-secondaryAction",
+  sectionHeading: "pp-sectionHeading",
+  statusDetail: "pp-statusDetail",
+  statusIcon: "pp-statusIcon",
+  statusItem: "pp-statusItem",
+  statusList: "pp-statusList",
+  statusName: "pp-statusName",
+  storeDomain: "pp-storeDomain",
+  summaryLabel: "pp-summaryLabel",
+  summaryPrice: "pp-summaryPrice",
+  summaryStatus: "pp-summaryStatus",
+} as const;
+
+export const links: LinksFunction = () => [
+  { rel: "stylesheet", href: stylesheet },
+];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, billing, session } = await authenticate.admin(request);

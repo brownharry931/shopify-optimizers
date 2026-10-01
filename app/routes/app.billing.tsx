@@ -5,9 +5,13 @@ import {
   useLoaderData,
   useNavigation,
 } from "react-router";
-import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
+import type {
+  ActionFunctionArgs,
+  LinksFunction,
+  LoaderFunctionArgs,
+} from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import styles from "../styles/billing.module.css";
+import stylesheet from "../styles/billing.css?url";
 import { authenticate } from "../shopify.server";
 import {
   getVerifiedSubscription,
@@ -23,6 +27,44 @@ import {
   PLAN_TRIAL_DAYS,
 } from "../config/plan.server";
 import prisma from "../db.server";
+
+const styles = {
+  actionCard: "pp-actionCard",
+  actionText: "pp-actionText",
+  actionTitle: "pp-actionTitle",
+  badge: "pp-badge",
+  badgeActive: "pp-badgeActive",
+  badgePending: "pp-badgePending",
+  billingPage: "pp-billingPage",
+  cancelButton: "pp-cancelButton",
+  card: "pp-card",
+  cardTitle: "pp-cardTitle",
+  columns: "pp-columns",
+  error: "pp-error",
+  explainer: "pp-explainer",
+  eyebrow: "pp-eyebrow",
+  feature: "pp-feature",
+  featureIcon: "pp-featureIcon",
+  featureList: "pp-featureList",
+  footnote: "pp-footnote",
+  heroCopy: "pp-heroCopy",
+  link: "pp-link",
+  planHero: "pp-planHero",
+  price: "pp-price",
+  priceBlock: "pp-priceBlock",
+  priceNote: "pp-priceNote",
+  primaryButton: "pp-primaryButton",
+  statusLabel: "pp-statusLabel",
+  statusRow: "pp-statusRow",
+  statusValue: "pp-statusValue",
+  subtitle: "pp-subtitle",
+  testNote: "pp-testNote",
+  title: "pp-title",
+} as const;
+
+export const links: LinksFunction = () => [
+  { rel: "stylesheet", href: stylesheet },
+];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, billing, session } = await authenticate.admin(request);
@@ -77,8 +119,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       // Shopify's framework throws a redirect response to its confirmation page.
       if (error instanceof Response) throw error;
       await recordBillingRequestFailure(session.shop);
+      const rawMessage =
+        error instanceof Error ? error.message : "Unknown billing error";
+      const diagnosticMessage = rawMessage
+        .replace(/https?:\/\/\S+/g, "[external URL omitted]")
+        .slice(0, 500);
       console.error("Shopify subscription request failed", {
         name: error instanceof Error ? error.name : "UnknownError",
+        message: diagnosticMessage,
       });
       return Response.json(
         {

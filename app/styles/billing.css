@@ -1,4 +1,4 @@
-.billingPage {
+.pp-billingPage {
   --ink: #172234;
   --muted: #687589;
   display: grid;
@@ -17,7 +17,7 @@
     sans-serif;
 }
 
-.planHero {
+.pp-planHero {
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -42,7 +42,7 @@
   box-shadow: 0 17px 42px rgba(22, 35, 65, 0.15);
 }
 
-.planHero::after {
+.pp-planHero::after {
   position: absolute;
   inset: -30%;
   pointer-events: none;
@@ -63,13 +63,13 @@
   }
 }
 
-.heroCopy,
-.priceBlock {
+.pp-heroCopy,
+.pp-priceBlock {
   position: relative;
   z-index: 1;
 }
 
-.eyebrow {
+.pp-eyebrow {
   margin: 0 0 10px;
   color: #a8f1df;
   font-size: 11px;
@@ -78,14 +78,14 @@
   text-transform: uppercase;
 }
 
-.title {
+.pp-title {
   margin: 0;
   font-size: clamp(25px, 3vw, 35px);
   font-weight: 740;
   letter-spacing: -0.045em;
 }
 
-.subtitle {
+.pp-subtitle {
   max-width: 570px;
   margin: 10px 0 0;
   color: #d0d9ea;
@@ -93,7 +93,7 @@
   line-height: 1.65;
 }
 
-.priceBlock {
+.pp-priceBlock {
   min-width: 190px;
   padding: 18px 20px;
   border: 1px solid rgba(255, 255, 255, 0.16);
@@ -102,7 +102,7 @@
   backdrop-filter: blur(10px);
 }
 
-.price {
+.pp-price {
   margin: 0;
   font-size: 29px;
   font-weight: 760;
@@ -110,20 +110,20 @@
   white-space: nowrap;
 }
 
-.price small {
+.pp-price small {
   color: #c7d0e3;
   font-size: 12px;
   font-weight: 550;
   letter-spacing: 0;
 }
 
-.priceNote {
+.pp-priceNote {
   margin: 7px 0 0;
   color: #d3dced;
   font-size: 11px;
 }
 
-.testNote {
+.pp-testNote {
   position: relative;
   z-index: 1;
   grid-column: 1 / -1;
@@ -137,13 +137,13 @@
   line-height: 1.5;
 }
 
-.columns {
+.pp-columns {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(290px, 0.75fr);
   gap: 15px;
 }
 
-.card {
+.pp-card {
   min-width: 0;
   padding: 21px;
   border: 1px solid #e4e9f0;
@@ -152,14 +152,14 @@
   box-shadow: 0 5px 16px rgba(19, 33, 54, 0.035);
 }
 
-.cardTitle {
+.pp-cardTitle {
   margin: 0 0 15px;
   font-size: 15px;
   font-weight: 730;
   letter-spacing: -0.02em;
 }
 
-.statusRow {
+.pp-statusRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -168,19 +168,19 @@
   border-top: 1px solid #edf0f4;
 }
 
-.statusLabel {
+.pp-statusLabel {
   color: var(--muted);
   font-size: 12px;
 }
 
-.statusValue {
+.pp-statusValue {
   color: var(--ink);
   font-size: 12px;
   font-weight: 700;
   text-align: right;
 }
 
-.badge {
+.pp-badge {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -193,26 +193,26 @@
   font-weight: 700;
 }
 
-.badgeActive {
+.pp-badgeActive {
   border-color: #c5ecdc;
   color: #087455;
   background: #eaf9f3;
 }
 
-.badgePending {
+.pp-badgePending {
   border-color: #f1dfb3;
   color: #8a5c0d;
   background: #fff8e9;
 }
 
-.explainer {
+.pp-explainer {
   margin: 13px 0 0;
   color: var(--muted);
   font-size: 12px;
   line-height: 1.65;
 }
 
-.link {
+.pp-link {
   display: inline-flex;
   margin-top: 17px;
   color: #315ed4;
@@ -221,11 +221,11 @@
   text-decoration: none;
 }
 
-.link:hover {
+.pp-link:hover {
   text-decoration: underline;
 }
 
-.featureList {
+.pp-featureList {
   display: grid;
   gap: 11px;
   margin: 0;
@@ -233,7 +233,7 @@
   list-style: none;
 }
 
-.feature {
+.pp-feature {
   display: grid;
   grid-template-columns: 24px minmax(0, 1fr);
   align-items: start;
@@ -243,7 +243,7 @@
   line-height: 1.5;
 }
 
-.featureIcon {
+.pp-featureIcon {
   display: grid;
   width: 23px;
   height: 23px;
@@ -255,7 +255,7 @@
   font-weight: 800;
 }
 
-.actionCard {
+.pp-actionCard {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -267,22 +267,22 @@
   background: linear-gradient(105deg, #f5f8ff, #f4fbf9);
 }
 
-.actionTitle {
+.pp-actionTitle {
   margin: 0;
   color: var(--ink);
   font-size: 14px;
   font-weight: 720;
 }
 
-.actionText {
+.pp-actionText {
   margin: 5px 0 0;
   color: var(--muted);
   font-size: 11px;
   line-height: 1.5;
 }
 
-.primaryButton,
-.cancelButton {
+.pp-primaryButton,
+.pp-cancelButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -299,31 +299,31 @@
     box-shadow 150ms ease;
 }
 
-.primaryButton {
+.pp-primaryButton {
   color: #fff;
   background: linear-gradient(110deg, #355fd1, #4b6fe0);
   box-shadow: 0 6px 14px rgba(53, 95, 209, 0.2);
 }
 
-.cancelButton {
+.pp-cancelButton {
   border: 1px solid #e3caca;
   color: #963c3c;
   background: #fff;
 }
 
-.primaryButton:hover,
-.cancelButton:hover {
+.pp-primaryButton:hover,
+.pp-cancelButton:hover {
   transform: translateY(-1px);
 }
 
-.primaryButton:disabled,
-.cancelButton:disabled {
+.pp-primaryButton:disabled,
+.pp-cancelButton:disabled {
   cursor: wait;
   opacity: 0.62;
   transform: none;
 }
 
-.error {
+.pp-error {
   padding: 13px 15px;
   border: 1px solid #f1c9c4;
   border-radius: 13px;
@@ -333,7 +333,7 @@
   line-height: 1.6;
 }
 
-.footnote {
+.pp-footnote {
   margin: 0;
   color: #798698;
   font-size: 10px;
@@ -341,13 +341,13 @@
 }
 
 @media (max-width: 760px) {
-  .planHero {
+  .pp-planHero {
     grid-template-columns: 1fr;
   }
-  .priceBlock {
+  .pp-priceBlock {
     justify-self: start;
   }
-  .columns {
+  .pp-columns {
     grid-template-columns: 1fr;
   }
 }
