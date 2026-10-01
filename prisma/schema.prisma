@@ -29,3 +29,34 @@ model Session {
 
   @@index([shop])
 }
+
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  CANCELLED
+  DECLINED
+  EXPIRED
+  FROZEN
+  UNKNOWN
+}
+
+// Current verified Shopify subscription snapshot per shop. No payment card data.
+model Subscription {
+  id                   String             @id @default(cuid())
+  shop                 String             @unique
+  shopifySubscriptionId String?            @unique
+  planName             String
+  price                Decimal            @db.Decimal(10, 2)
+  currency             String
+  interval             String
+  status               SubscriptionStatus @default(UNKNOWN)
+  trialDays            Int                @default(0)
+  isTest               Boolean            @default(false)
+  shopifyCreatedAt          DateTime?
+  cancelledAt          DateTime?
+  expiresAt            DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  @@index([status, updatedAt])
+}
