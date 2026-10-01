@@ -21,9 +21,10 @@ Tasks are marked complete only after implementation and the phase's applicable v
 - [x] Add a Codespaces dev container with private PostgreSQL for browser-based development.
 - [x] Add the missing default locale file required by Shopify CLI's Theme App Extension scanner after the first Codespaces run reported `ENOENT`.
 - [x] `npm run typecheck`, `npm run lint`, `npm run build`, and `npm audit` passed in this sandbox; audit reports zero known vulnerabilities.
-- [ ] Re-run `shopify app dev` in Codespaces and confirm the missing-locale Theme Check error is gone.
+- [x] Re-run `shopify app dev` in Codespaces and confirm the missing-locale Theme Check error is gone.
 - [x] Link the checked-in manifest to the user-provided public Shopify client ID; make its requested scopes (`read_themes`) and webhook API version (`2026-10`) explicit so Shopify CLI can apply the project configuration.
-- [ ] Restart `shopify app dev --reset` and verify Shopify has replaced the stale `example.com` URL, `2027-01` webhook version, and extra write scopes with the checked-in development configuration. Do not trust the preview until verified.
+- [x] Codespaces dev log now shows the real forwarded HTTPS app URL and only `read_themes` as the granted app scope.
+- [ ] Verify the local server responds on port 3000 and complete embedded app authentication/store GraphQL query after adding the concrete `shopify.web.toml` web process config.
 - [ ] Validate Prisma schema/migration and Shopify app/extension TOML in an environment able to download Prisma engines and authenticate Shopify CLI.
 - [ ] Link app to Shopify Dev Dashboard and start the HTTPS development tunnel through Shopify CLI.
 - [ ] Install on the merchant's development store; verify authentication, actual GraphQL query, app embed visibility, webhook delivery/HMAC, and uninstall cleanup.

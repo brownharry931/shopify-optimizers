@@ -59,6 +59,7 @@ Shopify's current App Review/AI Toolkit process must be checked again against th
 - [x] `npm run lint` passed in the sandbox.
 - [x] `npm audit` reported zero vulnerabilities after removing unused codegen dependencies and applying a patched deepmerge-ts override; re-run on every dependency update.
 - [ ] Prisma engine validation/migrations and Shopify CLI config validation could not be completed in the sandbox because Prisma binary download was blocked and app has not been linked to a Dev Dashboard client ID.
+- [ ] A Codespaces run confirmed the correct HTTPS app URL/scope and theme extension checks, but `app info` reported no web process and port 3000 had no listener. Added a concrete `shopify.web.toml`; rerun Shopify CLI and verify the web process/database migration before calling the embedded app working.
 - [ ] Install/upgrade/reinstall/uninstall, billing edge cases, webhook delivery, and theme compatibility require real Shopify development-store QA.
 
 ## Known limitations / submission status
