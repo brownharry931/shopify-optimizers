@@ -111,8 +111,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       // Shopify's framework throws a redirect response to its confirmation page.
       if (error instanceof Response) throw error;
       await recordBillingRequestFailure(session.shop);
-      const rawMessage =
-        error instanceof Error ? error.message : "Unknown billing error";
+      const errorRecord =
+        typeof error === "object" && error !== null
+          ? (error as { errorData?: unknown })
+          : undefined;
+      const shopifyMessages = Array.isArray(errorRecord?.errorData)
+        ? errorRecord.errorData
+            .map((item) =>
+              typeof item === "object" && item !== null && "message" in item
+                ? String((item as { message: unknown }).message)
+                : "",
+            )
+            .filter(Boolean)
+        : [];
+      const rawMessage = [
+        error instanceof Error ? error.message : "Unknown billing error",
+        ...shopifyMessages,
+      ].join(" — Shopify: ");
       const diagnosticMessage = rawMessage
         .replace(/https?:\/\/\S+/g, "[external URL omitted]")
         .replace(
