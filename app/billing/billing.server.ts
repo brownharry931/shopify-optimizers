@@ -165,6 +165,25 @@ async function getPartnerActiveSubscription(shopId: string) {
 }
 
 export async function getVerifiedSubscription(admin: AdminApi, shop: string) {
+  const hasPartnerConfiguration = Boolean(
+    process.env.SHOPIFY_PARTNER_ORG_ID?.trim() &&
+    process.env.SHOPIFY_PARTNER_API_ACCESS_TOKEN?.trim() &&
+    process.env.SHOPIFY_APP_GID?.trim(),
+  );
+  if (!hasPartnerConfiguration) {
+    const message =
+      "Partner API settings are not configured in this development environment. Subscription status is unverified and paid access remains locked.";
+    if (process.env.NODE_ENV === "production") {
+      throw new Response(message, { status: 503 });
+    }
+    return {
+      subscription: null,
+      isVerified: false,
+      hasActiveSubscription: false,
+      verificationError: message,
+    };
+  }
+
   const shopId = await getShopId(admin);
   const remote = await getPartnerActiveSubscription(shopId);
 

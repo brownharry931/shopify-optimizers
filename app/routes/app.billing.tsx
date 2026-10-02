@@ -68,6 +68,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "start") {
     const current = await getVerifiedSubscription(admin, session.shop);
+    if (!current.isVerified) {
+      throw new Response(
+        "Subscription verification is not configured; Shopify plan selection is disabled until Partner API settings are added.",
+        { status: 503 },
+      );
+    }
     if (current.hasActiveSubscription) return redirect("/app/billing");
     return redirect(getShopifyPlanSelectionUrl(session.shop), {
       target: "_top",
@@ -84,9 +90,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 function statusLabel(status: string | undefined, verified: boolean) {
-  if (!status) return "Not subscribed";
-  if (status === "ACTIVE" && verified) return "Active";
   if (!verified) return "Not verified with Shopify";
+  if (!status) return "Not subscribed";
+  if (status === "ACTIVE") return "Active";
   return status.charAt(0) + status.slice(1).toLowerCase();
 }
 
@@ -106,7 +112,7 @@ export default function BillingPage() {
   const isSubmitting = navigation.state !== "idle";
   const subscription = data.subscription;
   const active = data.hasActiveSubscription && data.isVerified;
-  const canStart = !active;
+  const canStart = data.isVerified && !active;
   const shopSlug = data.shop.replace(/\.myshopify\.com$/i, "");
   const shopBillingUrl = `https://admin.shopify.com/store/${encodeURIComponent(shopSlug)}/settings/billing`;
   const statusText = statusLabel(subscription?.status, data.isVerified);
@@ -141,6 +147,14 @@ export default function BillingPage() {
             Development stores can use a private no-charge test plan.
           </p>
         </header>
+
+        {!data.isVerified ? (
+          <p className={styles.testNote} role="status">
+            Partner API billing settings are not configured in this development
+            environment. You can continue exploring the app, but subscription
+            status cannot be confirmed and paid access stays locked.
+          </p>
+        ) : null}
 
         <div className={styles.columns}>
           <section className={styles.card} aria-labelledby="current-plan-title">
@@ -181,7 +195,9 @@ export default function BillingPage() {
               </>
             ) : (
               <p className={styles.explainer}>
-                Shopify reports no active subscription for this store.
+                {data.isVerified
+                  ? "Shopify reports no active subscription for this store."
+                  : "Subscription status is unavailable until Partner API settings are configured."}
               </p>
             )}
             {subscription?.trialEndsAt ? (
@@ -276,10 +292,15 @@ export default function BillingPage() {
             aria-label="Start subscription"
           >
             <div>
-              <h2 className={styles.actionTitle}>Ready to continue?</h2>
+              <h2 className={styles.actionTitle}>
+                {data.isVerified
+                  ? "Ready to continue?"
+                  : "Billing setup required"}
+              </h2>
               <p className={styles.actionText}>
-                Shopify will open the hosted plan-selection page. No charge is
-                made until you approve a plan there.
+                {data.isVerified
+                  ? "Shopify will open the hosted plan-selection page. No charge is made until you approve a plan there."
+                  : "The app dashboard remains available, but plan selection is disabled until Partner API settings are configured."}
               </p>
             </div>
             <Form method="post">
@@ -291,17 +312,19 @@ export default function BillingPage() {
               >
                 {isSubmitting
                   ? "Opening Shopify plans…"
-                  : subscription?.status === "CANCELLED"
-                    ? "Reactivate Performance Pro"
-                    : "Start Performance Pro"}
+                  : !data.isVerified
+                    ? "Billing setup required"
+                    : subscription?.status === "CANCELLED"
+                      ? "Reactivate Performance Pro"
+                      : "Start Performance Pro"}
               </button>
             </Form>
           </section>
         )}
 
         <p className={styles.footnote}>
-          Subscription status is verified against Shopify’s Partner API on the
-          server. This page does not collect payment details; Shopify App
+          Subscription status is verified against Shopify’s Partner API when
+          configured. This page does not collect payment details; Shopify App
           Pricing handles approval and charges.
         </p>
       </main>

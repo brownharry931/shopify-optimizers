@@ -70,9 +70,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return {
     shop,
     hasActiveSubscription: planAccess.hasActiveSubscription,
-    subscriptionStatus: planAccess.hasActiveSubscription
-      ? "ACTIVE"
-      : "NOT_SUBSCRIBED",
+    subscriptionStatus: !planAccess.isVerified
+      ? "UNKNOWN"
+      : planAccess.hasActiveSubscription
+        ? "ACTIVE"
+        : "NOT_SUBSCRIBED",
     planName: PLAN_NAME,
     planPrice: PLAN_PRICE,
     planCurrency: PLAN_CURRENCY,
