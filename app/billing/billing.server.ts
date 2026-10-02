@@ -1,234 +1,287 @@
-import type { AppSubscription } from "@shopify/shopify-api";
 import type { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import {
-  BILLING_TEST_MODE,
-  PLAN_CURRENCY,
-  PLAN_INTERVAL,
-  PLAN_NAME,
-  PLAN_PRICE,
-  PLAN_TRIAL_DAYS,
-} from "../config/plan.server";
-import type { Prisma } from "@prisma/client";
-
-type SubscriptionStatus =
-  | "PENDING"
-  | "ACTIVE"
-  | "CANCELLED"
-  | "DECLINED"
-  | "EXPIRED"
-  | "FROZEN"
-  | "UNKNOWN";
+import { PLAN_INTERVAL, PLAN_NAME } from "../config/plan.server";
 
 type AuthenticatedAdmin = Awaited<ReturnType<typeof authenticate.admin>>;
-type BillingApi = AuthenticatedAdmin["billing"];
 type AdminApi = AuthenticatedAdmin["admin"];
 
-function normalizeStatus(status: string): SubscriptionStatus {
-  switch (status) {
-    case "ACTIVE":
-      return "ACTIVE";
-    case "PENDING":
-    case "ACCEPTED":
-      return "PENDING";
-    case "CANCELLED":
-      return "CANCELLED";
-    case "DECLINED":
-      return "DECLINED";
-    case "EXPIRED":
-      return "EXPIRED";
-    case "FROZEN":
-      return "FROZEN";
-    default:
-      return "UNKNOWN";
+type ActiveAppPricingSubscription = {
+  shop: { id: string; myshopifyDomain: string };
+  billingPeriod: string;
+  cancelAtEndOfCycle: boolean;
+  trialEndsAt: string | null;
+  currentBillingCycle: {
+    startTime: string;
+    endTime: string;
+  } | null;
+  items: Array<{
+    handle: string;
+    description: string;
+    price: {
+      __typename: string;
+      active: boolean;
+      currency: string;
+      amount?: string;
+    };
+  }>;
+  legacySubscriptionId: string | null;
+};
+
+type PartnerApiResponse = {
+  data?: { activeSubscription: ActiveAppPricingSubscription | null };
+  errors?: Array<{ message?: string }>;
+};
+
+function partnerConfiguration() {
+  const organizationId = process.env.SHOPIFY_PARTNER_ORG_ID?.trim();
+  const accessToken = process.env.SHOPIFY_PARTNER_API_ACCESS_TOKEN?.trim();
+  const appGid = process.env.SHOPIFY_APP_GID?.trim();
+
+  if (!organizationId || !/^\d+$/.test(organizationId)) {
+    throw new Response(
+      "Billing verification setup is incomplete: set SHOPIFY_PARTNER_ORG_ID.",
+      { status: 503 },
+    );
   }
+  if (!accessToken) {
+    throw new Response(
+      "Billing verification setup is incomplete: configure the Partner API token with Manage apps permission.",
+      { status: 503 },
+    );
+  }
+  if (!appGid || !/^gid:\/\/shopify\/App\/\d+$/.test(appGid)) {
+    throw new Response(
+      "Billing verification setup is incomplete: set SHOPIFY_APP_GID to the public SpeedBoost app GID.",
+      { status: 503 },
+    );
+  }
+  return { organizationId, accessToken, appGid };
 }
 
-function newestSubscription(subscriptions: AppSubscription[]) {
-  return subscriptions
-    .filter((subscription) => subscription.name === PLAN_NAME)
-    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0];
+export function getShopifyAppHandle() {
+  const handle = process.env.SHOPIFY_APP_HANDLE?.trim().toLowerCase();
+  if (!handle || !/^[a-z0-9-]+$/.test(handle)) {
+    throw new Response(
+      "Billing setup is incomplete: set SHOPIFY_APP_HANDLE to the app's pricing-page handle.",
+      { status: 503 },
+    );
+  }
+  return handle;
 }
 
-async function queryShopifySubscriptions(admin: AdminApi) {
+export function getShopifyPlanSelectionUrl(shop: string) {
+  const storeHandle = shop.replace(/\.myshopify\.com$/i, "");
+  if (!/^[a-z0-9][a-z0-9-]*$/i.test(storeHandle)) {
+    throw new Error("The authenticated Shopify store domain is invalid.");
+  }
+  return `https://admin.shopify.com/store/${encodeURIComponent(storeHandle)}/charges/${encodeURIComponent(getShopifyAppHandle())}/pricing_plans`;
+}
+
+async function getShopId(admin: AdminApi) {
   const response = await admin.graphql(`#graphql
-    query PerformanceProSubscriptions {
-      currentAppInstallation {
-        allSubscriptions(first: 250, reverse: true) {
-          nodes {
-            id
-            name
-            status
-            test
-            trialDays
-            createdAt
-            currentPeriodEnd
-          }
-        }
-      }
+    query ShopifyAppPricingShopId {
+      shop { id }
     }
   `);
   const result = await response.json();
-  return (result.data?.currentAppInstallation?.allSubscriptions?.nodes ??
-    []) as AppSubscription[];
+  const shopId = result.data?.shop?.id;
+  if (typeof shopId !== "string" || !shopId.startsWith("gid://shopify/Shop/")) {
+    throw new Response(
+      "Shopify did not return a valid shop ID for billing verification.",
+      { status: 502 },
+    );
+  }
+  return shopId;
 }
 
-export async function getVerifiedSubscription(
-  admin: AdminApi,
-  billing: BillingApi,
-  shop: string,
-) {
-  const result = await billing.check({
-    plans: [PLAN_NAME],
-    isTest: BILLING_TEST_MODE,
-  });
-  let remote = newestSubscription(result.appSubscriptions);
-
-  if (!remote) {
-    try {
-      const allSubscriptions = await queryShopifySubscriptions(admin);
-      remote = newestSubscription(
-        allSubscriptions.filter(
-          (subscription) => BILLING_TEST_MODE || !subscription.test,
-        ),
-      );
-    } catch {
-      // A Shopify billing API failure must never grant access from local state.
-    }
-    if (!remote) {
-      const stored = await prisma.subscription.findUnique({ where: { shop } });
-      return {
-        subscription: stored,
-        isVerified: false,
-        hasActiveSubscription: false,
-      };
-    }
+async function getPartnerActiveSubscription(shopId: string) {
+  const { organizationId, accessToken, appGid } = partnerConfiguration();
+  let response: Response;
+  try {
+    response = await fetch(
+      `https://partners.shopify.com/${organizationId}/api/2026-07/graphql.json`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Shopify-Access-Token": accessToken,
+        },
+        body: JSON.stringify({
+          query: `query SpeedBoostActiveSubscription($appId: ID!, $shopId: ID!) {
+            activeSubscription(appId: $appId, shopId: $shopId) {
+              shop { id myshopifyDomain }
+              billingPeriod
+              cancelAtEndOfCycle
+              trialEndsAt
+              currentBillingCycle { startTime endTime }
+              items {
+                handle
+                description
+                price {
+                  __typename
+                  active
+                  currency
+                  ... on FlatRatePrice { amount }
+                }
+              }
+              legacySubscriptionId
+            }
+          }`,
+          variables: { appId: appGid, shopId },
+        }),
+        signal: AbortSignal.timeout(10_000),
+      },
+    );
+  } catch (error) {
+    console.error("Shopify Partner API request failed", {
+      name: error instanceof Error ? error.name : "UnknownError",
+    });
+    throw new Response(
+      "Shopify subscription verification is temporarily unavailable. Paid access remains locked; retry shortly.",
+      { status: 503 },
+    );
   }
 
-  const status = normalizeStatus(remote.status);
-  const stored = await prisma.subscription.findUnique({ where: { shop } });
-  const sameSubscription = stored?.shopifySubscriptionId === remote.id;
-  const shopifyCreatedAt = new Date(remote.createdAt);
-  const cancelledAt =
-    status === "CANCELLED"
-      ? sameSubscription
-        ? (stored?.cancelledAt ?? new Date())
-        : new Date()
-      : null;
-  const expiresAt = remote.currentPeriodEnd
-    ? new Date(remote.currentPeriodEnd)
+  let result: PartnerApiResponse;
+  try {
+    result = (await response.json()) as PartnerApiResponse;
+  } catch {
+    throw new Response(
+      "Shopify Partner API returned an unreadable billing response.",
+      { status: 502 },
+    );
+  }
+  if (!response.ok || result.errors?.length || !result.data) {
+    console.error("Shopify App Pricing verification failed", {
+      status: response.status,
+      errors: result.errors?.map(({ message }) => message).filter(Boolean),
+    });
+    throw new Response(
+      "Shopify could not verify this subscription. Paid access remains locked; check the Partner API setup and retry.",
+      { status: 502 },
+    );
+  }
+  return result.data.activeSubscription;
+}
+
+export async function getVerifiedSubscription(admin: AdminApi, shop: string) {
+  const shopId = await getShopId(admin);
+  const remote = await getPartnerActiveSubscription(shopId);
+
+  if (
+    remote &&
+    (remote.shop.id !== shopId ||
+      remote.shop.myshopifyDomain.toLowerCase() !== shop.toLowerCase())
+  ) {
+    throw new Response(
+      "Shopify Partner API returned a subscription for a different shop.",
+      { status: 502 },
+    );
+  }
+
+  if (!remote) {
+    return {
+      subscription: null,
+      isVerified: true,
+      hasActiveSubscription: false,
+    };
+  }
+
+  const activePrices = remote.items.filter((item) => item.price.active);
+  if (
+    activePrices.length === 0 ||
+    activePrices.some((item) => item.price.__typename !== "FlatRatePrice")
+  ) {
+    throw new Response(
+      "Shopify returned an active subscription outside the supported flat-rate plan configuration.",
+      { status: 502 },
+    );
+  }
+  const currency = activePrices[0].price.currency;
+  if (
+    currency !== "USD" ||
+    activePrices.some((item) => item.price.currency !== currency)
+  ) {
+    throw new Response(
+      "Shopify returned an unexpected subscription currency; expected USD.",
+      { status: 502 },
+    );
+  }
+  const amount = activePrices.reduce((sum, item) => {
+    if (
+      typeof item.price.amount !== "string" ||
+      item.price.amount.trim() === ""
+    ) {
+      throw new Response(
+        "Shopify returned a flat-rate item without an amount.",
+        { status: 502 },
+      );
+    }
+    const itemAmount = Number(item.price.amount);
+    if (!Number.isFinite(itemAmount) || itemAmount < 0) {
+      throw new Response("Shopify returned an invalid subscription amount.", {
+        status: 502,
+      });
+    }
+    return sum + itemAmount;
+  }, 0);
+  const expiresAt = remote.currentBillingCycle?.endTime
+    ? new Date(remote.currentBillingCycle.endTime)
     : null;
+  const trialEndsAt = remote.trialEndsAt ? new Date(remote.trialEndsAt) : null;
+  const isTestPlan = amount === 0 && process.env.NODE_ENV !== "production";
 
   const subscription = await prisma.subscription.upsert({
     where: { shop },
     create: {
       shop,
-      shopifySubscriptionId: remote.id,
+      shopifySubscriptionId: remote.legacySubscriptionId,
       planName: PLAN_NAME,
-      price: PLAN_PRICE,
-      currency: PLAN_CURRENCY,
-      interval: PLAN_INTERVAL,
-      status,
-      trialDays: remote.trialDays,
-      isTest: remote.test,
-      shopifyCreatedAt,
-      cancelledAt,
+      price: amount,
+      currency,
+      interval: remote.billingPeriod || PLAN_INTERVAL,
+      status: "ACTIVE",
+      trialDays: 0,
+      isTest: isTestPlan,
+      shopifyCreatedAt: null,
+      trialEndsAt,
+      cancelledAt: null,
       expiresAt,
+      cancelAtEndOfCycle: remote.cancelAtEndOfCycle,
     },
     update: {
-      shopifySubscriptionId: remote.id,
-      planName: PLAN_NAME,
-      price: PLAN_PRICE,
-      currency: PLAN_CURRENCY,
-      interval: PLAN_INTERVAL,
-      status,
-      trialDays: remote.trialDays,
-      isTest: remote.test,
-      shopifyCreatedAt,
-      cancelledAt,
+      shopifySubscriptionId: remote.legacySubscriptionId,
+      planName: activePrices[0].description || PLAN_NAME,
+      price: amount,
+      currency,
+      interval: remote.billingPeriod || PLAN_INTERVAL,
+      status: "ACTIVE",
+      isTest: isTestPlan,
+      trialEndsAt,
+      cancelledAt: null,
       expiresAt,
+      cancelAtEndOfCycle: remote.cancelAtEndOfCycle,
     },
   });
 
   return {
     subscription,
     isVerified: true,
-    hasActiveSubscription:
-      status === "ACTIVE" &&
-      remote.name === PLAN_NAME &&
-      (BILLING_TEST_MODE || !remote.test),
+    hasActiveSubscription: true,
   };
 }
 
-export async function reserveBillingRequest(shop: string) {
-  return prisma.$transaction(async (transaction: Prisma.TransactionClient) => {
-    // Return an integer from the query so Prisma does not try to deserialize
-    // PostgreSQL's `void` return value from pg_advisory_xact_lock.
-    await transaction.$queryRaw`
-      WITH shop_lock AS MATERIALIZED (
-        SELECT pg_advisory_xact_lock(hashtext(${shop}))
-      )
-      SELECT 1 FROM shop_lock
-    `;
-    const current = await transaction.subscription.findUnique({
-      where: { shop },
-    });
-    if (current?.status === "PENDING") {
-      return { reserved: false as const };
-    }
-
-    await transaction.subscription.upsert({
-      where: { shop },
-      create: {
-        shop,
-        planName: PLAN_NAME,
-        price: PLAN_PRICE,
-        currency: PLAN_CURRENCY,
-        interval: PLAN_INTERVAL,
-        status: "PENDING",
-        trialDays: PLAN_TRIAL_DAYS,
-        isTest: BILLING_TEST_MODE,
+export async function requireActivePerformancePro(
+  admin: AdminApi,
+  shop: string,
+) {
+  const result = await getVerifiedSubscription(admin, shop);
+  if (!result.hasActiveSubscription) {
+    throw new Response(
+      "An active SpeedBoost Shopify App Pricing subscription is required.",
+      {
+        status: 402,
       },
-      update: {
-        shopifySubscriptionId: null,
-        planName: PLAN_NAME,
-        price: PLAN_PRICE,
-        currency: PLAN_CURRENCY,
-        interval: PLAN_INTERVAL,
-        status: "PENDING",
-        trialDays: PLAN_TRIAL_DAYS,
-        isTest: BILLING_TEST_MODE,
-        shopifyCreatedAt: null,
-        cancelledAt: null,
-        expiresAt: null,
-      },
-    });
-    return { reserved: true as const };
-  });
-}
-
-export async function recordBillingRequestFailure(shop: string) {
-  await prisma.subscription.updateMany({
-    where: { shop, status: "PENDING", shopifySubscriptionId: null },
-    data: { status: "UNKNOWN" },
-  });
-}
-
-export async function isPlanActive(billing: BillingApi) {
-  const result = await billing.check({
-    plans: [PLAN_NAME],
-    isTest: BILLING_TEST_MODE,
-  });
-  return result.appSubscriptions.some(
-    (subscription) =>
-      subscription.name === PLAN_NAME && subscription.status === "ACTIVE",
-  );
-}
-
-export async function requireActivePerformancePro(billing: BillingApi) {
-  if (!(await isPlanActive(billing))) {
-    throw new Response("An active Performance Pro subscription is required.", {
-      status: 402,
-    });
+    );
   }
 }

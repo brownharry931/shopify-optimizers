@@ -8,8 +8,6 @@ services:
     environment:
       DATABASE_URL: postgresql://performance:performance@postgres:5432/performance_pro
       SCOPES: read_themes
-      BILLING_TEST_MODE: "true"
-      TRIAL_DAYS: "7"
     depends_on:
       postgres:
         condition: service_healthy

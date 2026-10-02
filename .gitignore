@@ -26,6 +26,8 @@ pnpm-lock.yaml
 
 # Ignore Shopify local config and generated dev files
 shopify.app.codespaces.toml
+# Linked per-environment aliases can contain Codespaces or other temporary URLs.
+shopify.app.*.toml
 .shopify/*
 .shopify.lock
 

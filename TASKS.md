@@ -22,7 +22,7 @@ Tasks are marked complete only after implementation and the phase's applicable v
 - [x] Add the missing default locale file required by Shopify CLI's Theme App Extension scanner after the first Codespaces run reported `ENOENT`.
 - [x] `npm run typecheck`, `npm run lint`, `npm run build`, and `npm audit` passed in this sandbox; audit reports zero known vulnerabilities.
 - [x] Re-run `shopify app dev` in Codespaces and confirm the missing-locale Theme Check error is gone.
-- [x] Link the checked-in manifest to the user-provided public Shopify client ID; make its requested scopes (`read_themes`) and webhook API version (`2026-10`) explicit so Shopify CLI can apply the project configuration.
+- [x] Use the existing public SpeedBoost app identity (no duplicate app); the Codespaces-only `performance-pro` config alias was linked to SpeedBoost. Keep that per-environment manifest and temporary URL out of Git.
 - [x] Codespaces dev log now shows the real forwarded HTTPS app URL and only `read_themes` as the granted app scope.
 - [x] Add a concrete Shopify `shopify.web.toml` process config so Shopify CLI actually launches the React Router server; Codespaces logs now confirm the Prisma migration completes and the server starts on an ephemeral local port.
 - [x] Diagnose the remaining blank preview: the Codespaces app URL pointed to forwarded port 3000 while Shopify CLI's proxy is on port 4040.
@@ -31,12 +31,14 @@ Tasks are marked complete only after implementation and the phase's applicable v
 - [ ] Link app to Shopify Dev Dashboard and start the HTTPS development tunnel through Shopify CLI.
 - [ ] Install on the merchant's development store; verify authentication, actual GraphQL query, app embed visibility, webhook delivery/HMAC, and uninstall cleanup.
 
-## Phase 4 — Billing (blocked on Phase 3 development-store verification)
-- [ ] Centralize plan defaults: Performance Pro / USD 10 / EVERY_30_DAYS / zero trial days.
-- [ ] Implement Shopify-managed recurring subscription creation and confirmation redirect.
-- [ ] Verify subscription server-side and prevent duplicate active/pending subscriptions.
-- [ ] Implement and test pending, active, declined, cancelled, expired, frozen, and error states.
-- [ ] Enforce premium access on server routes; never trust client billing status.
+## Phase 4 — Billing (Shopify App Pricing migration in progress)
+- [x] Remove legacy Billing API request/check/cancel flows for the existing public SpeedBoost app.
+- [x] Redirect plan selection and management to Shopify's hosted App Pricing page.
+- [x] Verify active status server-side through the Partner API and fail closed on errors.
+- [x] Persist current-cycle, trial-end, and scheduled-cancellation metadata.
+- [ ] Configure the Partner API client and private deployment variables; do not commit tokens.
+- [ ] Apply the new migration and verify the hosted selection/return/active-state/manage flow on a development store.
+- [ ] Enforce the shared verified-subscription gate on future premium features; no scanner/optimizer is implemented yet.
 
 ## Phase 5 — Scanner (blocked on working foundation and billing gate)
 - [ ] Scan real home, collection, and product storefront URLs.

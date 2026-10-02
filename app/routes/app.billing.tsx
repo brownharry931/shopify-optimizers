@@ -1,27 +1,17 @@
-import {
-  Form,
-  redirect,
-  useActionData,
-  useLoaderData,
-  useNavigation,
-} from "react-router";
+import { Form, useLoaderData, useNavigation } from "react-router";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import {
+  getShopifyPlanSelectionUrl,
   getVerifiedSubscription,
-  recordBillingRequestFailure,
-  reserveBillingRequest,
 } from "../billing/billing.server";
 import {
-  BILLING_TEST_MODE,
   PLAN_CURRENCY,
   PLAN_INTERVAL,
   PLAN_NAME,
   PLAN_PRICE,
-  PLAN_TRIAL_DAYS,
 } from "../config/plan.server";
-import prisma from "../db.server";
 
 const styles = {
   actionCard: "pp-actionCard",
@@ -29,14 +19,11 @@ const styles = {
   actionTitle: "pp-actionTitle",
   badge: "pp-badge",
   badgeActive: "pp-badgeActive",
-  badgePending: "pp-badgePending",
   billingPage: "pp-billingPage",
   cancelButton: "pp-cancelButton",
   card: "pp-card",
   cardTitle: "pp-cardTitle",
   columns: "pp-columns",
-  debug: "pp-debug",
-  error: "pp-error",
   explainer: "pp-explainer",
   eyebrow: "pp-eyebrow",
   feature: "pp-feature",
@@ -59,8 +46,8 @@ const styles = {
 } as const;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin, billing, session } = await authenticate.admin(request);
-  const result = await getVerifiedSubscription(admin, billing, session.shop);
+  const { admin, session } = await authenticate.admin(request);
+  const result = await getVerifiedSubscription(admin, session.shop);
 
   return {
     shop: session.shop,
@@ -70,134 +57,27 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       price: PLAN_PRICE,
       currency: PLAN_CURRENCY,
       interval: PLAN_INTERVAL,
-      trialDays: PLAN_TRIAL_DAYS,
-      testMode: BILLING_TEST_MODE,
     },
   };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { admin, billing, session } = await authenticate.admin(request);
+  const { admin, redirect, session } = await authenticate.admin(request);
   const form = await request.formData();
   const intent = form.get("intent");
 
   if (intent === "start") {
-    const current = await getVerifiedSubscription(admin, billing, session.shop);
+    const current = await getVerifiedSubscription(admin, session.shop);
     if (current.hasActiveSubscription) return redirect("/app/billing");
-    if (current.isVerified && current.subscription?.status === "PENDING") {
-      return Response.json(
-        {
-          error:
-            "There is already a pending Shopify approval for this shop. Complete or decline it in Shopify billing before starting another request.",
-        },
-        { status: 409 },
-      );
-    }
-
-    const reservation = await reserveBillingRequest(session.shop);
-    if (!reservation.reserved) {
-      return Response.json(
-        {
-          error:
-            "A billing request is already pending or being processed. Refresh Billing in a moment; a duplicate subscription was not created.",
-        },
-        { status: 409 },
-      );
-    }
-
-    try {
-      await billing.request({ plan: PLAN_NAME, isTest: BILLING_TEST_MODE });
-    } catch (error) {
-      // Shopify's framework throws a redirect response to its confirmation page.
-      if (error instanceof Response) throw error;
-      await recordBillingRequestFailure(session.shop);
-      const errorRecord =
-        typeof error === "object" && error !== null
-          ? (error as { errorData?: unknown })
-          : undefined;
-      const shopifyMessages = Array.isArray(errorRecord?.errorData)
-        ? errorRecord.errorData
-            .map((item) =>
-              typeof item === "object" && item !== null && "message" in item
-                ? String((item as { message: unknown }).message)
-                : "",
-            )
-            .filter(Boolean)
-        : [];
-      const rawMessage = [
-        error instanceof Error ? error.message : "Unknown billing error",
-        ...shopifyMessages,
-      ].join(" — Shopify: ");
-      const diagnosticMessage = rawMessage
-        .replace(/https?:\/\/\S+/g, "[external URL omitted]")
-        .replace(
-          /(access[_-]?token|id[_-]?token|api[_-]?key|secret|hmac|signature)=([^&\s]+)/gi,
-          "$1=[redacted]",
-        )
-        .slice(0, 500);
-      const errorName = error instanceof Error ? error.name : "UnknownError";
-      console.error("Shopify subscription request failed", {
-        name: errorName,
-        message: diagnosticMessage,
-      });
-      return Response.json(
-        {
-          error:
-            "Shopify could not start the subscription approval. No payment details were stored. Please review the development diagnostic and retry.",
-          ...(process.env.NODE_ENV !== "production"
-            ? { debug: `${errorName}: ${diagnosticMessage}` }
-            : {}),
-        },
-        { status: 502 },
-      );
-    }
+    return redirect(getShopifyPlanSelectionUrl(session.shop), {
+      target: "_top",
+    });
   }
 
-  if (intent === "cancel") {
-    const current = await getVerifiedSubscription(admin, billing, session.shop);
-    if (
-      !current.hasActiveSubscription ||
-      !current.subscription?.shopifySubscriptionId
-    ) {
-      return Response.json(
-        { error: "No active Shopify subscription was found to cancel." },
-        { status: 409 },
-      );
-    }
-
-    let cancelled;
-    try {
-      cancelled = await billing.cancel({
-        subscriptionId: current.subscription.shopifySubscriptionId,
-        isTest: BILLING_TEST_MODE,
-        prorate: false,
-      });
-    } catch (error) {
-      console.error("Shopify subscription cancellation failed", {
-        name: error instanceof Error ? error.name : "UnknownError",
-      });
-      return Response.json(
-        {
-          error:
-            "Shopify could not confirm the cancellation. Reload and verify the current billing status.",
-        },
-        { status: 502 },
-      );
-    }
-
-    try {
-      await prisma.subscription.update({
-        where: { shop: session.shop },
-        data: {
-          shopifySubscriptionId: cancelled.id,
-          status: "CANCELLED",
-          cancelledAt: new Date(),
-        },
-      });
-    } catch {
-      // The next server-side loader reconciles the durable snapshot from Shopify.
-    }
-    return redirect("/app/billing");
+  if (intent === "manage" || intent === "cancel") {
+    return redirect(getShopifyPlanSelectionUrl(session.shop), {
+      target: "_top",
+    });
   }
 
   return new Response("Unsupported billing action", { status: 400 });
@@ -206,7 +86,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 function statusLabel(status: string | undefined, verified: boolean) {
   if (!status) return "Not subscribed";
   if (status === "ACTIVE" && verified) return "Active";
-  if (status === "PENDING" && verified) return "Pending Shopify approval";
   if (!verified) return "Not verified with Shopify";
   return status.charAt(0) + status.slice(1).toLowerCase();
 }
@@ -223,24 +102,17 @@ function dateLabel(value: Date | string | null | undefined) {
 
 export default function BillingPage() {
   const data = useLoaderData<typeof loader>();
-  const actionData = useActionData<typeof action>() as
-    { error?: string; debug?: string } | undefined;
   const navigation = useNavigation();
   const isSubmitting = navigation.state !== "idle";
   const subscription = data.subscription;
   const active = data.hasActiveSubscription && data.isVerified;
-  const pending = subscription?.status === "PENDING" && data.isVerified;
-  const unverifiedPending =
-    subscription?.status === "PENDING" && !data.isVerified;
-  const canStart = !active && !pending && !unverifiedPending;
+  const canStart = !active;
   const shopSlug = data.shop.replace(/\.myshopify\.com$/i, "");
   const shopBillingUrl = `https://admin.shopify.com/store/${encodeURIComponent(shopSlug)}/settings/billing`;
   const statusText = statusLabel(subscription?.status, data.isVerified);
   const badgeClass = active
     ? `${styles.badge} ${styles.badgeActive}`
-    : pending
-      ? `${styles.badge} ${styles.badgePending}`
-      : styles.badge;
+    : styles.badge;
 
   return (
     <s-page heading="Billing & Subscription">
@@ -261,30 +133,14 @@ export default function BillingPage() {
               <small> / 30 days</small>
             </p>
             <p className={styles.priceNote}>
-              Recurring subscription · {data.plan.trialDays}-day trial
+              Monthly recurring subscription · terms shown by Shopify
             </p>
           </div>
-          {data.plan.testMode ? (
-            <p className={styles.testNote}>
-              Development test mode is on. Shopify test approvals do not charge
-              a real payment method.
-            </p>
-          ) : null}
+          <p className={styles.testNote}>
+            Plan price and trial terms are configured in Shopify App Pricing.
+            Development stores can use a private no-charge test plan.
+          </p>
         </header>
-
-        {actionData?.error ? (
-          <div className={styles.error} role="alert">
-            <strong>We couldn’t complete that billing action.</strong>
-            <br />
-            {actionData.error}
-            {actionData.debug ? (
-              <details className={styles.debug}>
-                <summary>Development diagnostic</summary>
-                <code>{actionData.debug}</code>
-              </details>
-            ) : null}
-          </div>
-        ) : null}
 
         <div className={styles.columns}>
           <section className={styles.card} aria-labelledby="current-plan-title">
@@ -294,9 +150,7 @@ export default function BillingPage() {
             <div className={styles.statusRow}>
               <span className={styles.statusLabel}>Shopify status</span>
               <span className={badgeClass}>
-                <span aria-hidden="true">
-                  {active ? "●" : pending ? "◷" : "○"}
-                </span>
+                <span aria-hidden="true">{active ? "●" : "○"}</span>
                 {statusText}
               </span>
             </div>
@@ -327,13 +181,21 @@ export default function BillingPage() {
               </>
             ) : (
               <p className={styles.explainer}>
-                No subscription record is available for this shop yet.
+                Shopify reports no active subscription for this store.
               </p>
             )}
-            {!data.isVerified && subscription ? (
+            {subscription?.trialEndsAt ? (
+              <div className={styles.statusRow}>
+                <span className={styles.statusLabel}>Trial ends</span>
+                <span className={styles.statusValue}>
+                  {dateLabel(subscription.trialEndsAt)}
+                </span>
+              </div>
+            ) : null}
+            {subscription?.cancelAtEndOfCycle ? (
               <p className={styles.explainer}>
-                Shopify did not confirm this saved record in the latest check.
-                It is not being treated as paid access.
+                Shopify has scheduled this subscription to end after the current
+                billing period.
               </p>
             ) : null}
             <a
@@ -364,8 +226,8 @@ export default function BillingPage() {
                   ✓
                 </span>
                 <span>
-                  No trial by default. Paid access requires a server-verified
-                  active subscription.
+                  Shopify controls any trial terms. Paid access requires a
+                  server-verified active subscription.
                 </span>
               </li>
               <li className={styles.feature}>
@@ -391,41 +253,22 @@ export default function BillingPage() {
                 Your subscription is active
               </h2>
               <p className={styles.actionText}>
-                Shopify confirmed the active status. You can manage the
-                recurring agreement in Shopify or cancel it here.
+                Shopify confirmed the active status. Manage or cancel the
+                recurring agreement on Shopify’s hosted pricing page.
               </p>
             </div>
             <Form method="post">
-              <input type="hidden" name="intent" value="cancel" />
+              <input type="hidden" name="intent" value="manage" />
               <button
                 className={styles.cancelButton}
                 type="submit"
                 disabled={isSubmitting}
               >
-                {isSubmitting ? "Please wait…" : "Cancel subscription"}
+                {isSubmitting
+                  ? "Opening Shopify…"
+                  : "Manage or cancel in Shopify"}
               </button>
             </Form>
-          </section>
-        ) : pending || unverifiedPending ? (
-          <section className={styles.actionCard} aria-label="Pending approval">
-            <div>
-              <h2 className={styles.actionTitle}>
-                {pending ? "Approval pending" : "Billing check needed"}
-              </h2>
-              <p className={styles.actionText}>
-                {pending
-                  ? "Shopify reports a pending approval. We will not create a second subscription."
-                  : "A prior approval attempt is recorded but not confirmed. Check Shopify before retrying; no duplicate request will be made here."}
-              </p>
-            </div>
-            <a
-              className={styles.primaryButton}
-              href={shopBillingUrl}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Check Shopify billing
-            </a>
           </section>
         ) : (
           <section
@@ -435,8 +278,8 @@ export default function BillingPage() {
             <div>
               <h2 className={styles.actionTitle}>Ready to continue?</h2>
               <p className={styles.actionText}>
-                Shopify will show the approval screen before any subscription is
-                activated.
+                Shopify will open the hosted plan-selection page. No charge is
+                made until you approve a plan there.
               </p>
             </div>
             <Form method="post">
@@ -447,7 +290,7 @@ export default function BillingPage() {
                 disabled={!canStart || isSubmitting}
               >
                 {isSubmitting
-                  ? "Opening Shopify approval…"
+                  ? "Opening Shopify plans…"
                   : subscription?.status === "CANCELLED"
                     ? "Reactivate Performance Pro"
                     : "Start Performance Pro"}
@@ -457,9 +300,9 @@ export default function BillingPage() {
         )}
 
         <p className={styles.footnote}>
-          Subscription status is checked against Shopify on the server. This
-          page does not collect card details. Development test billing is not a
-          real charge.
+          Subscription status is verified against Shopify’s Partner API on the
+          server. This page does not collect payment details; Shopify App
+          Pricing handles approval and charges.
         </p>
       </main>
     </s-page>

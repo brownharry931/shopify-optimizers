@@ -45,7 +45,7 @@ const styles = {
 } as const;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin, billing, session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const [response, planAccess] = await Promise.all([
     admin.graphql(`#graphql
       query StoreOverview {
@@ -56,7 +56,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         }
       }
     `),
-    getVerifiedSubscription(admin, billing, session.shop),
+    getVerifiedSubscription(admin, session.shop),
   ]);
   const result = await response.json();
   const shop = result.data?.shop;
@@ -70,11 +70,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return {
     shop,
     hasActiveSubscription: planAccess.hasActiveSubscription,
-    subscriptionStatus: planAccess.isVerified
-      ? (planAccess.subscription?.status ?? "UNKNOWN")
-      : planAccess.subscription
-        ? "UNKNOWN"
-        : "NOT_SUBSCRIBED",
+    subscriptionStatus: planAccess.hasActiveSubscription
+      ? "ACTIVE"
+      : "NOT_SUBSCRIBED",
     planName: PLAN_NAME,
     planPrice: PLAN_PRICE,
     planCurrency: PLAN_CURRENCY,

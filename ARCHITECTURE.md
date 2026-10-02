@@ -34,9 +34,7 @@ Keep minimal current subscription state locally for efficient authorization, but
 
 ### Billing
 
-Centralize plan configuration (`PLAN_NAME`, `PLAN_PRICE`, `PLAN_CURRENCY`, `PLAN_INTERVAL`, `TRIAL_DAYS`) with production defaults `Performance Pro`, `10`, `USD`, `EVERY_30_DAYS`, and `0`. Use Shopify's current GraphQL recurring app subscription flow (not Stripe). Before creating a subscription, query Shopify for existing active/pending subscriptions, reuse an applicable confirmation URL, and prevent duplicate creation with a database transaction/idempotency guard.
-
-Redirect the merchant to Shopify's confirmation URL. Treat the callback as untrusted until a server-side GraphQL query verifies subscription identity/status. Handle declined, cancelled, expired, frozen, unknown/API-error states distinctly. Reconcile status on protected requests and lifecycle events. Trial duration remains configurable but is not advertised or enabled by default.
+The existing public SpeedBoost app uses Shopify App Pricing, so subscription plans, prices, and trial terms live in the Partner Dashboard. The intended public offer is USD $10/month with no trial by default. Do not use legacy `billing.request`, `appSubscriptionCreate`, `billing.check`, or `billing.cancel` for this app. Redirect merchants to Shopify's hosted `/charges/{appHandle}/pricing_plans` page with top-level navigation. Verify current status through the Partner API `activeSubscription(appId:, shopId:)` query using a Partner API client with Manage apps permission. Fail closed when verification is unavailable. Use Shopify's private no-charge plan for development-store tests; do not mistake that for a dev-only trial on the public offer. Keep only a minimal local snapshot, including current-cycle/trial end and scheduled cancellation metadata; the Partner API is authoritative.
 
 ### Shopify lifecycle and compliance
 
@@ -80,7 +78,7 @@ Use HTTPS in production, secure cookies as appropriate to the framework, HSTS an
 - Admin API scopes limited to those actually needed; no customer/order scopes by default.
 - Database URL and secure session storage.
 - Shopify CLI-managed webhook/app configuration and any required webhook secrets.
-- `PLAN_NAME=Performance Pro`, `PLAN_PRICE=10`, `PLAN_CURRENCY=USD`, `PLAN_INTERVAL=EVERY_30_DAYS`, `TRIAL_DAYS=0`.
+- Shopify App Pricing plan configured in the existing SpeedBoost Partner Dashboard: USD $10/month, production trial disabled by default. Keep Partner API org ID, access token, SpeedBoost app GID, and app handle in deployment secrets; use a private no-charge development plan for tests.
 - Scanner/provider settings and strict timeouts/rate limits, if an external provider is selected.
 - Optional RUM configuration disabled by default, with documented consent/notice, data minimization, and retention.
 

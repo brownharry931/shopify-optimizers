@@ -1,24 +1,24 @@
-# Performance Pro
+# SpeedBoost
 
-An embedded Shopify app project for storefront performance diagnostics and reversible optimizations. The repository is being implemented in audited phases; unfinished features are not represented as active or verified.
+An embedded Shopify app project for storefront performance diagnostics and reversible optimizations. The existing public **SpeedBoost** app identity is reused; this repository must not be linked to a newly created duplicate app. Unfinished features are not represented as active or verified.
 
 ## Current phase
 
-Phase 4 (Shopify-managed billing) is implemented in code and awaiting verification in a Shopify development store. The single plan is Performance Pro at USD $10 every 30 days. Development test billing is configured with a seven-day test trial and never charges a real payment method; production defaults to zero trial days unless deliberately configured otherwise. Shopify handles subscription approval; the app uses Shopify's server-side billing checks before considering a subscription active. Production startup requires an explicit `BILLING_TEST_MODE=true` or `false` setting. Billing has not yet been verified against the connected development store. Scanning, Theme App Embed activation verification, storefront transformations, and monitoring are not implemented.
+Shopify billing is being migrated to **Shopify App Pricing**. The public offer is intended to be USD $10/month, with no production trial by default. Price and trial terms are controlled in the existing SpeedBoost app's Partner Dashboard, not in code. Development stores should use Shopify's private no-charge testing plan; a trial configured on the public offer also affects production merchants. The app redirects merchants to Shopify's hosted plan-selection page and verifies active subscriptions through the Partner API. This migration is not verified until Partner API credentials are configured and an end-to-end development-store test succeeds.
 
-## Run in a browser-based cloud development environment
+The app currently does not implement the performance scanner, Theme App Embed activation verification, storefront transformations, or monitoring.
 
-You do not need Shopify CLI installed on your personal computer. Use GitHub Codespaces (or another Node 22.12+ Linux development environment with terminal access):
+## Run in Codespaces
 
-1. Open this repository on GitHub and choose **Code → Codespaces → Create codespace**. Codespaces availability/billing depends on your GitHub plan.
-2. Select **Create codespace** and wait for the repository's dev container to finish. It installs dependencies, starts a private PostgreSQL container, generates Prisma Client, and applies the migrations. The Shopify CLI is included in development dependencies; no computer-wide CLI install is needed.
-3. In the Shopify Dev Dashboard, create the app **Performance Pro** if needed. In the Codespaces terminal, run `npx shopify app config link` and link this repository to that Dev Dashboard app. Complete Shopify login in the browser prompt.
-4. Add the app's credentials to Codespaces secrets/environment (or let Shopify CLI provide them during development): `SHOPIFY_API_KEY` and `SHOPIFY_API_SECRET`. Do not paste secrets in chat or commit them. The local PostgreSQL URL and `SCOPES=read_themes` are set by the dev container. Development billing uses `BILLING_TEST_MODE=true` and does not charge a real payment method.
-5. Run `npm run dev -- --store your-development-store.myshopify.com`. Follow Shopify CLI's prompts and install only on your development store. Keep this process running while testing.
-6. In Codespaces, Shopify CLI's proxy may listen on port `4040` while the React Router dev server uses a separate local port. Do not assume app traffic is served directly on port `3000`. For a Codespaces-hosted URL, expose the CLI proxy port `4040` temporarily as Public, use that exact forwarded HTTPS address as `application_url` and its `/auth/callback` as redirect URL in a local-only `shopify.app.codespaces.toml`, then run `npx shopify app dev --config codespaces --no-update --store your-development-store.myshopify.com`. The local Codespaces config is git-ignored; never commit the user-specific URL.
-7. Verify that the dashboard displays your real store name/domain. Open **Billing**, review the Shopify-managed Performance Pro test approval, approve it, verify the app reflects Shopify's active status, then cancel and verify the updated status. These steps have not yet been performed in this workspace. No scanner metrics or storefront performance results are available yet.
+1. Open this repository in GitHub Codespaces (or another Node 22.12+ Linux environment with terminal access). The dev container installs dependencies, starts PostgreSQL, generates Prisma Client, and applies migrations.
+2. Link the existing public **SpeedBoost** app in Shopify CLI with `npx shopify app config link`. Do not create another app. Keep the generated app config local and do not commit user-specific URLs.
+3. Set `SHOPIFY_API_KEY` and `SHOPIFY_API_SECRET` as Codespaces secrets. Never paste or commit them.
+4. Create a Partner API client for the same Shopify organization with **Manage apps** permission. Privately set these server environment variables: `SHOPIFY_PARTNER_ORG_ID` (numeric organization ID), `SHOPIFY_PARTNER_API_ACCESS_TOKEN` (secret), `SHOPIFY_APP_GID` (`gid://shopify/App/{id}` for SpeedBoost), and `SHOPIFY_APP_HANDLE` (the handle used in SpeedBoost's hosted pricing URL). Do not put the access token in Git, client-side code, or chat.
+5. In the existing SpeedBoost Partner Dashboard, verify the public plan is USD $10/month and has the intended production trial terms (zero by default). Use Shopify's private no-charge testing plan on a development store. App Pricing does not support a dev-only trial setting in this repository's code.
+6. Run the app against a development store, for example: `npm run dev -- --config performance-pro --store your-development-store.myshopify.com`. The config filename/CLI alias is not a new app identity. If Shopify CLI asks to override the app URL for the development store, that only changes the dev-store URL; it does not replace the public app's production URL.
+7. Open Billing, follow Shopify's hosted plan-selection page, and verify active status after returning to the app. Then test managing/cancelling through Shopify. These steps have not yet been completed in this workspace.
 
-A working public HTTPS endpoint must route requests to the Shopify CLI app proxy for embedded app pages and webhooks. Production deployment instead requires a stable HTTPS host, a production PostgreSQL database, secure environment variables, and a reviewed `shopify app deploy` version. Do not deploy a Codespaces URL to production.
+The Partner API settings must also be configured as private Render environment variables for production. Render must separately deploy this repository to the existing `speedboost.onrender.com` service; Shopify CLI config linking does not deploy the Node server. Never deploy a Codespaces URL to production.
 
 ## Project documents
 
@@ -28,4 +28,4 @@ A working public HTTPS endpoint must route requests to the Shopify CLI app proxy
 
 ## Safety
 
-No Shopify API secret, access token, database password, merchant/customer data, or production credentials belong in Git or chat. Never test billing or storefront changes against a live merchant store without explicit approval.
+No Shopify API secret, Partner API access token, database password, merchant/customer data, or production credentials belong in Git or chat. Never test charges or storefront changes against a live merchant store without explicit approval.
