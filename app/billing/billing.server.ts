@@ -34,6 +34,7 @@ type PartnerApiResponse = {
 
 const DEFAULT_PARTNER_ORG_ID = "2522432";
 const DEFAULT_SHOPIFY_APP_GID = "gid://shopify/App/395164614657";
+const DEFAULT_SHOPIFY_APP_HANDLE = "speedboost-v2-1";
 
 function partnerConfiguration() {
   // These identifiers are not secrets. Defaults match the existing SpeedBoost app;
@@ -64,9 +65,20 @@ function partnerConfiguration() {
   return { organizationId, accessToken, appGid };
 }
 
+function configuredShopifyAppHandle() {
+  return (
+    process.env.SHOPIFY_APP_HANDLE?.trim().toLowerCase() ||
+    DEFAULT_SHOPIFY_APP_HANDLE
+  );
+}
+
+export function hasValidShopifyAppHandle() {
+  return /^[a-z0-9-]+$/.test(configuredShopifyAppHandle());
+}
+
 export function getShopifyAppHandle() {
-  const handle = process.env.SHOPIFY_APP_HANDLE?.trim().toLowerCase();
-  if (!handle || !/^[a-z0-9-]+$/.test(handle)) {
+  const handle = configuredShopifyAppHandle();
+  if (!hasValidShopifyAppHandle()) {
     throw new Response(
       "Billing setup is incomplete: set SHOPIFY_APP_HANDLE to the app's pricing-page handle.",
       { status: 503 },

@@ -5,6 +5,7 @@ import { authenticate } from "../shopify.server";
 import {
   getShopifyPlanSelectionUrl,
   getVerifiedSubscription,
+  hasValidShopifyAppHandle,
 } from "../billing/billing.server";
 import {
   PLAN_CURRENCY,
@@ -58,7 +59,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       currency: PLAN_CURRENCY,
       interval: PLAN_INTERVAL,
     },
-    planSelectionConfigured: Boolean(process.env.SHOPIFY_APP_HANDLE?.trim()),
+    planSelectionConfigured: hasValidShopifyAppHandle(),
   };
 };
 

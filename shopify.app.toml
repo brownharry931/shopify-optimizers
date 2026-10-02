@@ -1,6 +1,7 @@
 # Link this manifest to the existing public SpeedBoost app with `shopify app config link`.
 # Never put the API secret here.
 name = "SpeedBoost"
+handle = "speedboost-v2-1"
 application_url = "https://speedboost.onrender.com"
 embedded = true
 
