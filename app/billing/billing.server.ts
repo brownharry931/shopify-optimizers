@@ -32,10 +32,16 @@ type PartnerApiResponse = {
   errors?: Array<{ message?: string }>;
 };
 
+const DEFAULT_PARTNER_ORG_ID = "2522432";
+const DEFAULT_SHOPIFY_APP_GID = "gid://shopify/App/395164614657";
+
 function partnerConfiguration() {
-  const organizationId = process.env.SHOPIFY_PARTNER_ORG_ID?.trim();
+  // These identifiers are not secrets. Defaults match the existing SpeedBoost app;
+  // deployments can still override them for a separate environment.
+  const organizationId =
+    process.env.SHOPIFY_PARTNER_ORG_ID?.trim() || DEFAULT_PARTNER_ORG_ID;
   const accessToken = process.env.SHOPIFY_PARTNER_API_ACCESS_TOKEN?.trim();
-  const appGid = process.env.SHOPIFY_APP_GID?.trim();
+  const appGid = process.env.SHOPIFY_APP_GID?.trim() || DEFAULT_SHOPIFY_APP_GID;
 
   if (!organizationId || !/^\d+$/.test(organizationId)) {
     throw new Response(
@@ -166,9 +172,7 @@ async function getPartnerActiveSubscription(shopId: string) {
 
 export async function getVerifiedSubscription(admin: AdminApi, shop: string) {
   const hasPartnerConfiguration = Boolean(
-    process.env.SHOPIFY_PARTNER_ORG_ID?.trim() &&
-    process.env.SHOPIFY_PARTNER_API_ACCESS_TOKEN?.trim() &&
-    process.env.SHOPIFY_APP_GID?.trim(),
+    process.env.SHOPIFY_PARTNER_API_ACCESS_TOKEN?.trim(),
   );
   if (!hasPartnerConfiguration) {
     const message =

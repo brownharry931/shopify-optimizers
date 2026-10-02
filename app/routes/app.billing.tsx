@@ -58,6 +58,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       currency: PLAN_CURRENCY,
       interval: PLAN_INTERVAL,
     },
+    planSelectionConfigured: Boolean(process.env.SHOPIFY_APP_HANDLE?.trim()),
   };
 };
 
@@ -112,7 +113,7 @@ export default function BillingPage() {
   const isSubmitting = navigation.state !== "idle";
   const subscription = data.subscription;
   const active = data.hasActiveSubscription && data.isVerified;
-  const canStart = data.isVerified && !active;
+  const canStart = data.isVerified && data.planSelectionConfigured && !active;
   const shopSlug = data.shop.replace(/\.myshopify\.com$/i, "");
   const shopBillingUrl = `https://admin.shopify.com/store/${encodeURIComponent(shopSlug)}/settings/billing`;
   const statusText = statusLabel(subscription?.status, data.isVerified);
@@ -153,6 +154,11 @@ export default function BillingPage() {
             Partner API billing settings are not configured in this development
             environment. You can continue exploring the app, but subscription
             status cannot be confirmed and paid access stays locked.
+          </p>
+        ) : !data.planSelectionConfigured ? (
+          <p className={styles.testNote} role="status">
+            Subscription verification is configured, but SHOPIFY_APP_HANDLE is
+            still needed to open Shopify&apos;s plan-selection page.
           </p>
         ) : null}
 
@@ -293,14 +299,18 @@ export default function BillingPage() {
           >
             <div>
               <h2 className={styles.actionTitle}>
-                {data.isVerified
-                  ? "Ready to continue?"
-                  : "Billing setup required"}
+                {!data.isVerified
+                  ? "Billing setup required"
+                  : data.planSelectionConfigured
+                    ? "Ready to continue?"
+                    : "Plan page setup required"}
               </h2>
               <p className={styles.actionText}>
-                {data.isVerified
-                  ? "Shopify will open the hosted plan-selection page. No charge is made until you approve a plan there."
-                  : "The app dashboard remains available, but plan selection is disabled until Partner API settings are configured."}
+                {!data.isVerified
+                  ? "The app dashboard remains available, but plan selection is disabled until the Partner API token is configured."
+                  : data.planSelectionConfigured
+                    ? "Shopify will open the hosted plan-selection page. No charge is made until you approve a plan there."
+                    : "Set SHOPIFY_APP_HANDLE in this environment to enable Shopify's hosted plan-selection page."}
               </p>
             </div>
             <Form method="post">
@@ -314,9 +324,11 @@ export default function BillingPage() {
                   ? "Opening Shopify plans…"
                   : !data.isVerified
                     ? "Billing setup required"
-                    : subscription?.status === "CANCELLED"
-                      ? "Reactivate Performance Pro"
-                      : "Start Performance Pro"}
+                    : !data.planSelectionConfigured
+                      ? "Set app handle"
+                      : subscription?.status === "CANCELLED"
+                        ? "Reactivate Performance Pro"
+                        : "Start Performance Pro"}
               </button>
             </Form>
           </section>
