@@ -361,3 +361,22 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+.pp-debug {
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid #f1c9c4;
+}
+
+.pp-debug summary {
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pp-debug code {
+  display: block;
+  margin-top: 7px;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}

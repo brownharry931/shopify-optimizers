@@ -1,14 +1,9 @@
-import type {
-  HeadersFunction,
-  LinksFunction,
-  LoaderFunctionArgs,
-} from "react-router";
+import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { getVerifiedSubscription } from "../billing/billing.server";
 import { PLAN_CURRENCY, PLAN_NAME, PLAN_PRICE } from "../config/plan.server";
-import stylesheet from "../styles/dashboard.css?url";
 
 const styles = {
   actions: "pp-actions",
@@ -48,10 +43,6 @@ const styles = {
   summaryPrice: "pp-summaryPrice",
   summaryStatus: "pp-summaryStatus",
 } as const;
-
-export const links: LinksFunction = () => [
-  { rel: "stylesheet", href: stylesheet },
-];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, billing, session } = await authenticate.admin(request);

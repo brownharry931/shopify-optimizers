@@ -12,8 +12,8 @@ if (configuredInterval !== "EVERY_30_DAYS") {
 }
 export const PLAN_INTERVAL = BillingInterval.Every30Days;
 
-function nonNegativeDays(value: string | undefined): number {
-  if (value === undefined || value.trim() === "") return 0;
+function nonNegativeDays(value: string | undefined, fallback: number): number {
+  if (value === undefined || value.trim() === "") return fallback;
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 0) {
     throw new Error("TRIAL_DAYS must be a non-negative integer");
@@ -21,7 +21,13 @@ function nonNegativeDays(value: string | undefined): number {
   return parsed;
 }
 
-export const PLAN_TRIAL_DAYS = nonNegativeDays(process.env.TRIAL_DAYS);
+// Development billing uses a seven-day test trial; test charges never collect
+// real money. Production keeps the agreed no-trial default unless explicitly
+// configured by the deployment owner.
+export const PLAN_TRIAL_DAYS = nonNegativeDays(
+  process.env.TRIAL_DAYS,
+  process.env.NODE_ENV === "production" ? 0 : 7,
+);
 
 function billingTestMode(): boolean {
   const configured = process.env.BILLING_TEST_MODE?.trim().toLowerCase();

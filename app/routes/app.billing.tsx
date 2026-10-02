@@ -5,13 +5,8 @@ import {
   useLoaderData,
   useNavigation,
 } from "react-router";
-import type {
-  ActionFunctionArgs,
-  LinksFunction,
-  LoaderFunctionArgs,
-} from "react-router";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import stylesheet from "../styles/billing.css?url";
 import { authenticate } from "../shopify.server";
 import {
   getVerifiedSubscription,
@@ -40,6 +35,7 @@ const styles = {
   card: "pp-card",
   cardTitle: "pp-cardTitle",
   columns: "pp-columns",
+  debug: "pp-debug",
   error: "pp-error",
   explainer: "pp-explainer",
   eyebrow: "pp-eyebrow",
@@ -61,10 +57,6 @@ const styles = {
   testNote: "pp-testNote",
   title: "pp-title",
 } as const;
-
-export const links: LinksFunction = () => [
-  { rel: "stylesheet", href: stylesheet },
-];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, billing, session } = await authenticate.admin(request);
@@ -123,15 +115,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         error instanceof Error ? error.message : "Unknown billing error";
       const diagnosticMessage = rawMessage
         .replace(/https?:\/\/\S+/g, "[external URL omitted]")
+        .replace(
+          /(access[_-]?token|id[_-]?token|api[_-]?key|secret|hmac|signature)=([^&\s]+)/gi,
+          "$1=[redacted]",
+        )
         .slice(0, 500);
+      const errorName = error instanceof Error ? error.name : "UnknownError";
       console.error("Shopify subscription request failed", {
-        name: error instanceof Error ? error.name : "UnknownError",
+        name: errorName,
         message: diagnosticMessage,
       });
       return Response.json(
         {
           error:
-            "Shopify could not start the subscription approval. No payment details were stored. Please retry or try again later.",
+            "Shopify could not start the subscription approval. No payment details were stored. Please review the development diagnostic and retry.",
+          ...(process.env.NODE_ENV !== "production"
+            ? { debug: `${errorName}: ${diagnosticMessage}` }
+            : {}),
         },
         { status: 502 },
       );
@@ -209,7 +209,7 @@ function dateLabel(value: Date | string | null | undefined) {
 export default function BillingPage() {
   const data = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>() as
-    { error?: string } | undefined;
+    { error?: string; debug?: string } | undefined;
   const navigation = useNavigation();
   const isSubmitting = navigation.state !== "idle";
   const subscription = data.subscription;
@@ -262,6 +262,12 @@ export default function BillingPage() {
             <strong>We couldn’t complete that billing action.</strong>
             <br />
             {actionData.error}
+            {actionData.debug ? (
+              <details className={styles.debug}>
+                <summary>Development diagnostic</summary>
+                <code>{actionData.debug}</code>
+              </details>
+            ) : null}
           </div>
         ) : null}
 

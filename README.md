@@ -4,7 +4,7 @@ An embedded Shopify app project for storefront performance diagnostics and rever
 
 ## Current phase
 
-Phase 4 (Shopify-managed billing) is implemented in code and awaiting verification in a Shopify development store. The single plan is Performance Pro at USD $10 every 30 days, with zero trial days by default. Shopify handles subscription approval; the app uses Shopify's server-side billing checks before considering a subscription active. Development billing test mode is enabled by default. Production startup requires an explicit `BILLING_TEST_MODE=true` or `false` setting. Billing has not yet been verified against the connected development store. Scanning, Theme App Embed activation verification, storefront transformations, and monitoring are not implemented.
+Phase 4 (Shopify-managed billing) is implemented in code and awaiting verification in a Shopify development store. The single plan is Performance Pro at USD $10 every 30 days. Development test billing is configured with a seven-day test trial and never charges a real payment method; production defaults to zero trial days unless deliberately configured otherwise. Shopify handles subscription approval; the app uses Shopify's server-side billing checks before considering a subscription active. Production startup requires an explicit `BILLING_TEST_MODE=true` or `false` setting. Billing has not yet been verified against the connected development store. Scanning, Theme App Embed activation verification, storefront transformations, and monitoring are not implemented.
 
 ## Run in a browser-based cloud development environment
 
