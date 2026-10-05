@@ -1,7 +1,7 @@
 # Shopify App Review — Working Self-Review
 
 **Status:** In progress; not an App Store submission approval or completed review.
-**Last reviewed:** 2026-10-02
+**Last reviewed:** 2026-10-05
 
 Shopify's current App Review/AI Toolkit process must be checked again against the live Dev Dashboard and current Shopify documentation before submission. This checklist records code-level evidence only; unverified external behavior is explicitly marked pending.
 
@@ -16,13 +16,15 @@ Shopify's current App Review/AI Toolkit process must be checked again against th
 
 - [x] No Admin API scopes are requested because implemented routes use authenticated shop context only; no customer, order, payment, checkout, product, or theme data scopes are needed.
 - [x] Admin GraphQL store overview is implemented; API version is set to Shopify's October 2026 version supported by the installed SDK.
-- [ ] Validate actual required theme access and app-embed verification path; remove any scope found unnecessary.
+- [x] Embed activation uses a signed Shopify App Proxy heartbeat and requires no `read_themes` scope.
+- [ ] Confirm scope removal and app-proxy configuration through Shopify CLI on a development store.
 - [ ] Verify GraphQL query against a development shop.
 
 ## Billing
 
-- [ ] Shopify recurring subscription flow, $10 USD / 30-day interval, zero default trial, server-side verification, event reconciliation, and feature gating are not implemented.
-- [ ] Do not submit or enable paid access until billing phase tests pass.
+- [x] Hosted Shopify App Pricing selection, Partner API active-subscription verification, and a server-side subscription gate for the mobile scan are implemented in code.
+- [ ] Confirm the $10 USD / 30-day offer and zero production trial in the Partner Dashboard; test subscription state, cancellation, errors, and paid gating on a development store.
+- [ ] Do not submit or enable production paid access until billing phase tests pass.
 
 ## Webhooks and uninstall
 
@@ -66,4 +68,4 @@ Shopify's current App Review/AI Toolkit process must be checked again against th
 
 ## Known limitations / submission status
 
-The current repository is an early app foundation, not a complete paid performance app. Billing, scanner, optimizations, monitoring, reports, readiness checks, support/legal pages, and production deployment are incomplete. **Not ready for Shopify App Store submission.**
+The current repository contains the hosted billing foundation, a first billing-gated mobile homepage scan, and code for signed Theme App Embed verification. The merchant screenshot shows an active billing status, but the new scan and app-proxy integrations have not yet been validated on a live development store in this sandbox. Product-level optimization features (image compression/resizing, responsive images, lazy loading, critical CSS, JS/CSS minification/deferral, preload/app control), multi-template and desktop scans, before/after evidence, rollback, monitoring, and final support/legal/public-listing requirements remain incomplete. The Prisma migration, App Proxy sync, Render production deployment, and real store QA are still pending. **Not ready for Shopify App Store submission.**
