@@ -222,27 +222,47 @@ export async function getVerifiedSubscription(admin: AdminApi, shop: string) {
     };
   }
 
-  const activePrices = remote.items.filter((item) => item.price.active);
+  // activeSubscription already represents the current contract. Shopify can
+  // return price.active=false for a valid active contract (for example, a
+  // retired price still attached to the merchant's subscription), so this
+  // field must not be used to decide whether the contract's item is current.
+  const flatRateItems = remote.items.filter(
+    (item) => item.price.__typename === "FlatRatePrice",
+  );
   if (
-    activePrices.length === 0 ||
-    activePrices.some((item) => item.price.__typename !== "FlatRatePrice")
+    remote.items.length === 0 ||
+    flatRateItems.length !== remote.items.length
   ) {
+    const itemDetails = remote.items
+      .map(
+        ({ handle, price }) =>
+          `${handle || "(no handle)"}:${price.__typename}:active=${price.active}`,
+      )
+      .join(", ");
+    console.error("Unsupported Shopify App Pricing subscription items", {
+      shop,
+      items: itemDetails || "(no items)",
+    });
+    const message =
+      "Shopify returned an active subscription outside the supported flat-rate plan configuration.";
     throw new Response(
-      "Shopify returned an active subscription outside the supported flat-rate plan configuration.",
+      process.env.NODE_ENV === "production"
+        ? message
+        : `${message} Items: ${itemDetails || "(no items)"}`,
       { status: 502 },
     );
   }
-  const currency = activePrices[0].price.currency;
+  const currency = flatRateItems[0].price.currency;
   if (
     currency !== "USD" ||
-    activePrices.some((item) => item.price.currency !== currency)
+    flatRateItems.some((item) => item.price.currency !== currency)
   ) {
     throw new Response(
       "Shopify returned an unexpected subscription currency; expected USD.",
       { status: 502 },
     );
   }
-  const amount = activePrices.reduce((sum, item) => {
+  const amount = flatRateItems.reduce((sum, item) => {
     if (
       typeof item.price.amount !== "string" ||
       item.price.amount.trim() === ""
@@ -286,7 +306,7 @@ export async function getVerifiedSubscription(admin: AdminApi, shop: string) {
     },
     update: {
       shopifySubscriptionId: remote.legacySubscriptionId,
-      planName: activePrices[0].description || PLAN_NAME,
+      planName: flatRateItems[0].description || PLAN_NAME,
       price: amount,
       currency,
       interval: remote.billingPeriod || PLAN_INTERVAL,
