@@ -1,8 +1,8 @@
 {% comment %}
-  Foundation-only App Embed. No storefront scripts or theme files are changed.
-  Optimization runtime will be added only after billing, safety controls, and
-  real measurement have passed their implementation gates.
+  Lightweight app-embed heartbeat. This confirms the extension is active on a
+  published storefront without changing merchant theme files or blocking render.
 {% endcomment %}
+<script src="{{ 'embed.js' | asset_url }}" defer></script>
 
 {% schema %}
 {

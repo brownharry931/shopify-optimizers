@@ -62,3 +62,32 @@ model Subscription {
 
   @@index([status, updatedAt])
 }
+
+// A real storefront signal proving the App Embed runtime executed in a shop.
+model ThemeEmbedHeartbeat {
+  shop       String   @id
+  lastSeenAt DateTime @default(now())
+  pageLoads  Int      @default(1)
+}
+
+// Synthetic Lighthouse/PageSpeed results. These are never presented as field data.
+model PerformanceScan {
+  id             String    @id @default(cuid())
+  shop           String
+  pageUrl        String
+  strategy       String    @default("mobile")
+  status         String    @default("RUNNING")
+  performance    Int?
+  lcpMs          Int?
+  tbtMs          Int?
+  cls            Float?
+  fcpMs          Int?
+  speedIndexMs   Int?
+  findings       Json?
+  error          String?
+  createdAt      DateTime  @default(now())
+  completedAt    DateTime?
+
+  @@index([shop, createdAt])
+  @@index([shop, status])
+}

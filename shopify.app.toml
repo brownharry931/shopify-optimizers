@@ -5,12 +5,17 @@ handle = "speedboost-v2-1"
 application_url = "https://speedboost.onrender.com"
 embedded = true
 
+[app_proxy]
+url = "/proxy"
+subpath = "speedboost"
+prefix = "apps"
+
 [build]
 automatically_update_urls_on_dev = true
 
 [access_scopes]
-# Least privilege. read_themes is required only for theme-aware onboarding.
-scopes = "read_themes"
+# No Admin API scopes are currently needed; the app uses authenticated shop context only.
+scopes = ""
 
 [auth]
 redirect_urls = ["https://speedboost.onrender.com/auth/callback"]

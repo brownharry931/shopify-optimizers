@@ -14,7 +14,7 @@ Shopify's current App Review/AI Toolkit process must be checked again against th
 
 ## APIs and scopes
 
-- [x] Requested scope is `read_themes` only, for planned theme-aware onboarding. No customers, orders, payment, or checkout scopes are requested.
+- [x] No Admin API scopes are requested because implemented routes use authenticated shop context only; no customer, order, payment, checkout, product, or theme data scopes are needed.
 - [x] Admin GraphQL store overview is implemented; API version is set to Shopify's October 2026 version supported by the installed SDK.
 - [ ] Validate actual required theme access and app-embed verification path; remove any scope found unnecessary.
 - [ ] Verify GraphQL query against a development shop.
@@ -28,15 +28,16 @@ Shopify's current App Review/AI Toolkit process must be checked again against th
 
 - [x] Configured app uninstall and scope-update webhook handlers use the Shopify framework's authenticated webhook helper.
 - [x] Configured the three mandatory customer/shop privacy compliance topics; app requests no customer data.
-- [x] Uninstall deletion is idempotent for current session records.
+- [x] Uninstall and shop-redact handlers idempotently delete sessions, subscription snapshots, scan history, and embed-heartbeat records.
 - [ ] Validate exact webhook subscriptions and HMAC/retry delivery in Dev Dashboard/development store.
-- [ ] Implement data deletion for future app data models and test replay/retention when those models are introduced.
+- [ ] Verify 90-day scan retention cleanup and data deletion/replay behavior on a development database.
 
 ## Theme App Extension
 
-- [x] Added a Theme App Extension App Embed block foundation. It does not modify theme files and currently injects no storefront script.
-- [ ] Generate/validate the extension with Shopify CLI, deploy it, and inspect it in Theme Editor on a development theme.
-- [ ] Implement actual storefront behavior only after paid entitlement, safety, exclusions, rollback, and performance measurement are in place.
+- [x] Added a Theme App Extension App Embed that loads a tiny deferred storefront heartbeat; no theme files are modified and no render-blocking optimization code is injected.
+- [x] Added a Shopify-signed App Proxy heartbeat so Admin readiness can reflect a real published-storefront visit instead of a hardcoded "not verified" state.
+- [ ] Sync the app-proxy manifest, apply the database migration, and verify activation on a development store. Theme Editor preview does not count as proof of published storefront execution.
+- [ ] Implement actual storefront optimizations only after verified paid entitlement, safety, exclusions, rollback, and before/after measurement are in place.
 
 ## Security and privacy
 
@@ -50,7 +51,8 @@ Shopify's current App Review/AI Toolkit process must be checked again against th
 
 - [x] Dashboard displays actual authenticated shop identity and explicitly shows no metrics until a real scanner runs.
 - [x] No fake performance measurements, testimonials, or guaranteed score claims are present in the implemented dashboard.
-- [ ] Scanner, before/after evidence, optimization engine, rollback, and monitoring are not implemented.
+- [x] A billing-gated mobile homepage scan uses Google PageSpeed Insights and persists real Lighthouse output, explicitly labeled synthetic lab data.
+- [ ] Desktop and collection/product scans, matching before/after evidence, automatic optimization, rollback, and monitoring are not implemented or tested.
 
 ## Build, tests, and release
 

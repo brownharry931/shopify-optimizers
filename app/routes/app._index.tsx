@@ -4,6 +4,7 @@ import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { getVerifiedSubscription } from "../billing/billing.server";
 import { PLAN_CURRENCY, PLAN_NAME, PLAN_PRICE } from "../config/plan.server";
+import prisma from "../db.server";
 
 const styles = {
   actions: "pp-actions",
@@ -46,7 +47,7 @@ const styles = {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
-  const [response, planAccess] = await Promise.all([
+  const [response, planAccess, embedHeartbeat, latestScan] = await Promise.all([
     admin.graphql(`#graphql
       query StoreOverview {
         shop {
@@ -57,6 +58,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
     `),
     getVerifiedSubscription(admin, session.shop),
+    prisma.themeEmbedHeartbeat.findUnique({ where: { shop: session.shop } }),
+    prisma.performanceScan.findFirst({
+      where: { shop: session.shop, status: "COMPLETE" },
+      orderBy: { createdAt: "desc" },
+    }),
   ]);
   const result = await response.json();
   const shop = result.data?.shop;
@@ -78,6 +84,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     planName: PLAN_NAME,
     planPrice: PLAN_PRICE,
     planCurrency: PLAN_CURRENCY,
+    themeEmbedVerified: Boolean(
+      embedHeartbeat &&
+      embedHeartbeat.lastSeenAt.getTime() > Date.now() - 24 * 60 * 60 * 1000,
+    ),
+    themeEmbedLastSeenAt: embedHeartbeat?.lastSeenAt.toISOString() || null,
+    latestScan: latestScan
+      ? {
+          performance: latestScan.performance,
+          lcpMs: latestScan.lcpMs,
+          tbtMs: latestScan.tbtMs,
+          cls: latestScan.cls,
+          createdAt: latestScan.createdAt.toISOString(),
+        }
+      : null,
   };
 };
 
@@ -113,12 +133,15 @@ export default function Dashboard() {
               A clearer view of your storefront speed.
             </h1>
             <p className={styles.heroText}>
-              Performance Pro brings your store connection, billing, and
-              upcoming performance tools together in one place. Measurements
-              will only appear after a real scan has run.
+              Run a mobile storefront measurement, review real Lighthouse
+              opportunities, and verify that the Theme App Embed has executed on
+              your published store.
             </p>
             <div className={styles.actions}>
-              <a className={styles.primaryAction} href="/app/billing">
+              <a className={styles.primaryAction} href="/app/scan">
+                Run storefront scan
+              </a>
+              <a className={styles.secondaryAction} href="/app/billing">
                 {data.hasActiveSubscription
                   ? "Manage subscription"
                   : "Explore Performance Pro"}
@@ -153,21 +176,51 @@ export default function Dashboard() {
 
         <section aria-labelledby="metrics-title">
           <h2 className={styles.sectionHeading} id="metrics-title">
-            Core Web Vitals
+            Mobile Lighthouse diagnostics
           </h2>
           <div className={styles.meterGrid}>
             {[
-              { name: "Largest Contentful Paint", code: "LCP" },
-              { name: "Interaction to Next Paint", code: "INP" },
-              { name: "Cumulative Layout Shift", code: "CLS" },
+              {
+                name: "Largest Contentful Paint",
+                code: "LCP",
+                value:
+                  data.latestScan?.lcpMs === null ||
+                  data.latestScan?.lcpMs === undefined
+                    ? "Not measured"
+                    : data.latestScan.lcpMs >= 1000
+                      ? `${(data.latestScan.lcpMs / 1000).toFixed(2)} s`
+                      : `${data.latestScan.lcpMs} ms`,
+              },
+              {
+                name: "Total Blocking Time",
+                code: "TBT",
+                value:
+                  data.latestScan?.tbtMs === null ||
+                  data.latestScan?.tbtMs === undefined
+                    ? "Not measured"
+                    : `${data.latestScan.tbtMs} ms`,
+              },
+              {
+                name: "Cumulative Layout Shift",
+                code: "CLS",
+                value:
+                  data.latestScan?.cls === null ||
+                  data.latestScan?.cls === undefined
+                    ? "Not measured"
+                    : data.latestScan.cls.toFixed(3),
+              },
             ].map((metric) => (
               <article className={styles.metricCard} key={metric.code}>
                 <div className={styles.metricTop}>
                   <span>{metric.name}</span>
                   <span className={styles.metricCode}>{metric.code}</span>
                 </div>
-                <p className={styles.metricValue}>Not measured</p>
-                <p className={styles.metricFoot}>A real scan has not run yet</p>
+                <p className={styles.metricValue}>{metric.value}</p>
+                <p className={styles.metricFoot}>
+                  {data.latestScan
+                    ? `Synthetic mobile · score ${data.latestScan.performance ?? "—"}/100`
+                    : "Run a mobile scan to measure"}
+                </p>
               </article>
             ))}
           </div>
@@ -179,8 +232,9 @@ export default function Dashboard() {
               Product readiness
             </h2>
             <p className={styles.panelDescription}>
-              The app is connected. We show each capability honestly while the
-              remaining product work is built and verified.
+              Activation is confirmed from real storefront visits, and scans use
+              Google PageSpeed. Automated theme modifications are not yet
+              enabled.
             </p>
             <ul className={styles.statusList}>
               <li className={styles.statusItem}>
@@ -213,16 +267,40 @@ export default function Dashboard() {
                 <span className={badgeClass}>{subscriptionState}</span>
               </li>
               <li className={styles.statusItem}>
-                <span className={styles.statusIcon} aria-hidden="true">
-                  ↗
+                <span
+                  className={`${styles.statusIcon} ${data.themeEmbedVerified ? styles.badgeGood : ""}`}
+                  aria-hidden="true"
+                >
+                  {data.themeEmbedVerified ? "✓" : "↗"}
                 </span>
                 <span className={styles.statusName}>
                   Theme App Embed
                   <span className={styles.statusDetail}>
-                    Activation still needs verification
+                    {data.themeEmbedVerified && data.themeEmbedLastSeenAt
+                      ? `Live storefront ping received ${new Date(data.themeEmbedLastSeenAt).toLocaleString()}`
+                      : "Not confirmed yet. Visit the published storefront after enabling the embed."}
+                    {!data.themeEmbedVerified &&
+                    data.shop.primaryDomain?.url ? (
+                      <>
+                        {" "}
+                        <a
+                          href={data.shop.primaryDomain.url}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Open storefront to verify ↗
+                        </a>
+                      </>
+                    ) : null}
                   </span>
                 </span>
-                <span className={styles.badge}>Not verified</span>
+                <span
+                  className={`${styles.badge} ${data.themeEmbedVerified ? styles.badgeGood : ""}`}
+                >
+                  {data.themeEmbedVerified
+                    ? "Verified"
+                    : "Needs storefront visit"}
+                </span>
               </li>
               <li className={styles.statusItem}>
                 <span className={styles.statusIcon} aria-hidden="true">
@@ -231,10 +309,17 @@ export default function Dashboard() {
                 <span className={styles.statusName}>
                   Store scanner
                   <span className={styles.statusDetail}>
-                    No scan engine or results yet
+                    {data.latestScan
+                      ? `Latest mobile Lighthouse scan: ${new Date(data.latestScan.createdAt).toLocaleString()}`
+                      : "Run a real mobile Lighthouse scan to see results."}{" "}
+                    <a href="/app/scan">Open scanner →</a>
                   </span>
                 </span>
-                <span className={styles.badge}>In development</span>
+                <span
+                  className={`${styles.badge} ${data.latestScan ? styles.badgeGood : ""}`}
+                >
+                  {data.latestScan ? "Scan available" : "Ready to scan"}
+                </span>
               </li>
             </ul>
           </section>
@@ -264,9 +349,9 @@ export default function Dashboard() {
             i
           </span>
           <span>
-            No sample scores, estimated speed gains, or unverified storefront
-            changes are shown. Synthetic and field data will be identified
-            separately when scanning is available.
+            Mobile Lighthouse values are synthetic lab measurements, not field
+            Core Web Vitals. The app does not make theme changes automatically;
+            review real scan findings and retest before claiming an improvement.
           </span>
         </div>
       </main>
