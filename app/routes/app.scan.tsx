@@ -82,7 +82,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       async (tx: Prisma.TransactionClient) => {
         // Serialize quota checks per shop so concurrent form submissions cannot
         // all pass the same count check.
-        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${session.shop}, 0))`;
+        await tx.$queryRaw`SELECT 1 AS locked FROM (SELECT pg_advisory_xact_lock(hashtextextended(${session.shop}, 0))) AS advisory_lock`;
         const since = new Date(Date.now() - 60 * 60 * 1000);
         const runsInWindow = await tx.auditRun.count({
           where: { shop: session.shop, createdAt: { gte: since } },
