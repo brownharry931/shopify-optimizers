@@ -7,7 +7,6 @@ services:
     working_dir: /workspaces/${localWorkspaceFolderBasename}
     environment:
       DATABASE_URL: postgresql://performance:performance@postgres:5432/performance_pro
-      SCOPES: ""
     depends_on:
       postgres:
         condition: service_healthy

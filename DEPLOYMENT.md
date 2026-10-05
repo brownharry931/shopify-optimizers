@@ -24,7 +24,6 @@ Configure these as private Render environment variables; never put values in Git
 | `SHOPIFY_PARTNER_ORG_ID`           |       No | Defaults to the existing organization ID in `.env.example`.                                 |
 | `SHOPIFY_APP_GID`                  |       No | Defaults to the existing SpeedBoost app GID.                                                |
 | `SHOPIFY_APP_HANDLE`               |       No | Defaults to `speedboost-v2-1`.                                                              |
-| `SCOPES`                           |       No | Currently blank; don't request Admin scopes that have no implementation/use.                |
 | `GOOGLE_PAGESPEED_API_KEY`         |       No | Optional PageSpeed quota key. Keep private; provider quota may constrain audits without it. |
 | `PORT`                             |       No | Supplied by the hosting platform. The container listens on `0.0.0.0`.                       |
 
@@ -43,7 +42,7 @@ If deploying without Docker, use Node 22.12+, run `npm ci`, `npx prisma generate
 
 ## Shopify configuration release
 
-`shopify.app.toml` configures the App Proxy path and requests no Admin API scopes. The Theme App Extension serves a small heartbeat only. Validate the linked config against the existing app in Shopify CLI, review the diff carefully, and release an app version only after development-store verification. Shopify CLI config linking or app version release does **not** deploy the Render server. Conversely, Render deployment does not publish the Shopify App Proxy/extension configuration.
+`shopify.app.toml` configures the App Proxy path and requests `read_products`, `read_themes`, and `write_themes` for product-media discovery and isolated theme-preview workflows. The server's OAuth scope list matches that manifest. Shopify must approve the public-app `write_themes` exemption before theme-file write operations can work; listing the scope does not grant that exemption. Validate the linked config against the existing app in Shopify CLI, review the diff carefully, and release an app version only after development-store verification. Shopify CLI config linking or app version release does **not** deploy the Render server. Conversely, Render deployment does not publish the Shopify App Proxy/extension configuration.
 
 The App Embed is not an optimizer yet. Never claim the dashboard's theme status is verified until a published development storefront request has successfully reached the signed App Proxy endpoint.
 
@@ -58,4 +57,4 @@ Prisma migrations are additive and applied by `prisma migrate deploy` on startup
 
 ## Not yet available
 
-There is no background-worker service/queue, scheduled audit/monitoring process, image asset processor, theme-file publisher, or theme rollback process in the current implementation. Add those only with a durable job architecture and real Shopify permissions. Theme-file duplication/upsert/publish requires Shopify's explicit `write_themes` exemption; the public app must not request that protected permission unless Shopify grants it.
+There is no background-worker service/queue, scheduled audit/monitoring process, image asset processor, theme-file publisher, or theme rollback process in the current implementation. Add those only with a durable job architecture and real Shopify permissions. Theme-file duplication/upsert/publish requires Shopify's explicit `write_themes` exemption for this public app. The requested scope is configured, but write operations must remain unavailable until Shopify grants the exemption.

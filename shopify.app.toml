@@ -14,8 +14,9 @@ prefix = "apps"
 automatically_update_urls_on_dev = true
 
 [access_scopes]
-# No Admin API scopes are currently needed; the app uses authenticated shop context only.
-scopes = ""
+# Least-privilege scopes for product media discovery and safe draft-theme workflows.
+# Shopify must separately grant the public-app write_themes exemption before theme-file writes work.
+scopes = "read_products,read_themes,write_themes"
 
 [auth]
 redirect_urls = ["https://speedboost.onrender.com/auth/callback"]

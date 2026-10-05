@@ -14,10 +14,11 @@ Shopify's current App Review/AI Toolkit process must be checked again against th
 
 ## APIs and scopes
 
-- [x] No Admin API scopes are requested because implemented routes use authenticated shop context only; no customer, order, payment, checkout, product, or theme data scopes are needed.
-- [x] Admin GraphQL store overview is implemented; API version is set to Shopify's October 2026 version supported by the installed SDK.
-- [x] Embed activation uses a signed Shopify App Proxy heartbeat and requires no `read_themes` scope.
-- [ ] Confirm scope removal and app-proxy configuration through Shopify CLI on a development store.
+- [ ] Request `read_products` for product/media discovery and `read_themes` for theme inventory/source diagnostics through the existing app's next Shopify configuration release.
+- [ ] Request `write_themes` only for the planned draft-theme workflow; Shopify must separately grant the public-app theme-write exemption before any file writes are possible.
+- [x] Embed activation uses a signed Shopify App Proxy heartbeat and does not itself require `read_themes`.
+- [ ] Confirm the requested scopes, consent/reinstall flow, and app-proxy configuration through Shopify CLI on a development store.
+- [ ] Do not request customer, order, payment, checkout, or unrelated file scopes; no implemented workflow currently needs them.
 - [ ] Verify GraphQL query against a development shop.
 
 ## Billing
