@@ -47,14 +47,16 @@ Tasks are marked complete only after implementation and the phase's applicable v
 - [x] Enforce live Partner API subscription verification before starting the mobile scan.
 - [ ] Centralize entitlement checks for future optimization, monitoring, and reporting features.
 
-## Phase 5 — Scanner (initial homepage scan implemented; live verification pending)
+## Phase 5 — Scanner (path/device audit v1; live verification pending)
 
-- [x] Run a real Google PageSpeed Insights mobile Lighthouse scan against the Shopify-reported primary homepage origin, behind a server-side active-subscription check.
-- [x] Persist scan results and real audit opportunities; label performance score and lab metrics as synthetic, never substitute TBT for INP.
-- [x] Add per-shop scan rate limit and provider timeout/error handling.
-- [ ] Validate migration, provider quota, scanner errors, and results on a published development store.
-- [ ] Extend scanning to desktop, collection, and product templates with least-privilege scopes and verified URLs.
-- [ ] Add SSRF/redirect analysis and tests around all scan/provider boundaries.
+- [x] Run Google PageSpeed Insights Lighthouse for mobile, desktop, or both strategies against a Shopify-reported primary-domain path; server-check the active subscription.
+- [x] Allowlist same-store homepage, product, collection, page, and blog article path shapes; reject arbitrary hosts, query strings, fragments, and encoded paths.
+- [x] Persist `AuditRun` groups and per-device `PerformanceScan` rows; keep synthetic lab and field INP claims distinct.
+- [x] Add atomic per-shop audit quota, provider timeout/error handling, and 90-day pruning on subsequent audits.
+- [x] Add automated unit tests for target paths, origin shape and strategy selection.
+- [ ] Validate migration, provider quota, cancellation/error cases, and output on a published development store.
+- [ ] Move provider work to a durable PostgreSQL-backed worker with retries, cancellation, concurrency control and user-visible status polling.
+- [ ] Add CrUX field data only where eligible and explicitly separate it from synthetic scan history.
 
 ## Phases 6–8 — Optimizations, safety, monitoring (not started)
 

@@ -1,7 +1,33 @@
 # Architecture and Phased Implementation Plan
 
-**Status:** Proposed; foundation not yet implemented.
-**Product:** Performance Pro, one Shopify-managed recurring plan at USD $10 per 30-day billing interval; trial defaults to zero days.
+**Status:** Iterative implementation; the current re-audit and remaining gates are recorded in `PROJECT_AUDIT.md` and `SHOPIFY_APP_REVIEW.md`.
+**Product:** Existing public SpeedBoost app identity; one Shopify-managed recurring plan intended at USD $10 per 30-day billing interval; trial defaults to zero days in the public offer.
+
+## Current audit and implementation plan
+
+The repository is a Shopify React Router TypeScript app (Shopify CLI/App Bridge, Admin GraphQL API `2026-10`), npm lockfile, Prisma/PostgreSQL, a Theme App Extension/App Embed, webhook routes, and a Render production URL. Current code also contains Shopify App Pricing/Partner API verification, a signed App Proxy heartbeat, and a persisted PageSpeed Insights mobile-homepage scan. There is no production worker, multi-page/desktop audit, optimizer engine, theme-preview/publish/rollback system, automated test suite, or verified production deployment.
+
+The current Admin interface uses the `s-*` Shopify Admin UI web components provided by the current app template. Continue with that supported embedded UI stack rather than introducing legacy Polaris React dependencies unless the Shopify template guidance changes.
+
+Implementation proceeds as gated phases: (1) verify app/config/database and add unit/integration tests; (2) finish a persistent audit/job/result domain with same-shop URL validation, selected URLs, mobile/desktop, retry/quota controls, and CrUX-vs-lab provenance; (3) implement one reversible, measurable extension-based image/media optimization at a time, with LCP/gallery exclusions and a global off switch; (4) add independent CSS/JS/font/script modules, history, preview and rollback; (5) production security, multiple-theme QA, observability and App Store review. Do not expose unimplemented modules as working navigation or report synthetic savings.
+
+**Shopify constraint:** Current Admin GraphQL docs mark `themeDuplicate`, `themeFilesUpsert`, and theme-writing operations as requiring `write_themes` plus a Shopify exemption. The app currently requests no Admin API scopes. Do not request that protected scope or build an app-managed theme publisher until the existing public app receives explicit Shopify approval for the exemption. A merchant-controlled unpublished-theme preview may be explored through supported Theme App Extension behavior, but it must not be represented as an app-created theme copy.
+
+## Current and planned data model
+
+| Model                                        | State                              | Purpose / invariant                                                                                                                                                                            |
+| -------------------------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Session`                                    | Implemented                        | Shopify-managed session storage; shop-scoped.                                                                                                                                                  |
+| `Subscription`                               | Implemented                        | Minimal latest Partner API snapshot; Shopify remains authoritative.                                                                                                                            |
+| `ThemeEmbedHeartbeat`                        | Implemented                        | Aggregate last-seen/page-load signal only; no visitor identifiers or paths.                                                                                                                    |
+| `PerformanceScan`                            | Implemented (v1)                   | One real same-store page/device Lighthouse result, explicit `COMPLETE`/`FAILED`, lab provenance, findings, and shop-scoped history.                                                            |
+| `AuditRun`                                   | Implemented (v1)                   | Groups mobile/desktop strategies for one allowlisted same-store path, carries template metadata, enforces a per-shop hourly quota, and is pruned with scans after 90 days on a subsequent run. |
+| `BackgroundJob` + `JobAttempt`               | Planned next                       | PostgreSQL-backed durable queue with leases, idempotency, retry/backoff, cancellation, concurrency quotas and dead-letter state. Current provider requests remain synchronous.                 |
+| `OptimizationSetting` + `OptimizationChange` | Planned                            | Per-shop/module config and versioned changes with exclusions, before/after scan references, manifest/hash and rollback metadata.                                                               |
+| `AssetOptimization`                          | Planned                            | Idempotent original/derived asset mapping, sizes, format, quality, status and verified restore path.                                                                                           |
+| `ThemeSnapshot` / `ThemeChange`              | Blocked for app-managed publishing | Only add after Shopify grants the required protected `write_themes` exemption; never store or overwrite an unverified merchant baseline.                                                       |
+
+All merchant-owned rows include `shop` or are reachable only through a shop-owned parent. Every read/write must derive that shop from the authenticated Shopify session or a Shopify-verified App Proxy request; never from a browser-supplied shop ID.
 
 ## Architectural principles
 
@@ -34,7 +60,7 @@ Keep minimal current subscription state locally for efficient authorization, but
 
 ### Billing
 
-The existing public SpeedBoost app uses Shopify App Pricing, so subscription plans, prices, and trial terms live in the Partner Dashboard. The intended public offer is USD $10/month with no trial by default. Do not use legacy `billing.request`, `appSubscriptionCreate`, `billing.check`, or `billing.cancel` for this app. Redirect merchants to Shopify's hosted `/charges/{appHandle}/pricing_plans` page with top-level navigation. Verify current status through the Partner API `activeSubscription(appId:, shopId:)` query using a Partner API client with Manage apps permission. Fail closed when verification is unavailable. Use Shopify's private no-charge plan for development-store tests; do not mistake that for a dev-only trial on the public offer. Keep only a minimal local snapshot, including current-cycle/trial end and scheduled cancellation metadata; the Partner API is authoritative.
+The existing public SpeedBoost app uses Shopify App Pricing, so subscription plans, prices, and trial terms live in the Partner Dashboard. The intended public offer is USD $10/month with no trial by default. Do not use legacy `billing.request`, `appSubscriptionCreate`, `billing.check`, or `billing.cancel` for this app. Redirect merchants to Shopify's hosted `/charges/{appHandle}/pricing_plans` page with top-level navigation. Verify current status through the Partner API `activeSubscription(appId:, shopId:)` query using a Partner API client with Manage apps permission; fail closed on unavailable or inactive state. Shopify App Pricing does not send subscription-change webhooks (current docs direct apps to verify redirect parameters and query Partner API for cancellations/freezes/expiry), so do not add a deprecated `APP_SUBSCRIPTIONS_UPDATE` webhook. Use the Partner API historical `events` query for diagnostics/history where needed, never as an access grant over `activeSubscription`. Use Shopify's private no-charge plan for development-store tests; do not mistake that for a dev-only trial on the public offer. Keep only a minimal local snapshot, including current-cycle/trial end and scheduled cancellation metadata; the Partner API is authoritative.
 
 ### Shopify lifecycle and compliance
 

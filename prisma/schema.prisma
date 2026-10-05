@@ -70,11 +70,32 @@ model ThemeEmbedHeartbeat {
   pageLoads  Int      @default(1)
 }
 
+// A merchant-requested audit of one same-store path on one or more device strategies.
+model AuditRun {
+  id          String           @id @default(cuid())
+  shop        String
+  targetPath  String
+  pageUrl     String
+  template    String
+  strategies  String[]
+  status      String           @default("RUNNING")
+  error       String?
+  createdAt   DateTime         @default(now())
+  completedAt DateTime?
+  scans       PerformanceScan[]
+
+  @@index([shop, createdAt])
+  @@index([shop, status])
+}
+
 // Synthetic Lighthouse/PageSpeed results. These are never presented as field data.
 model PerformanceScan {
   id             String    @id @default(cuid())
   shop           String
+  auditRunId     String?
+  auditRun       AuditRun? @relation(fields: [auditRunId], references: [id], onDelete: SetNull)
   pageUrl        String
+  template       String    @default("home")
   strategy       String    @default("mobile")
   status         String    @default("RUNNING")
   performance    Int?
@@ -83,6 +104,8 @@ model PerformanceScan {
   cls            Float?
   fcpMs          Int?
   speedIndexMs   Int?
+  fieldDataSource String?
+  fieldData       Json?
   findings       Json?
   error          String?
   createdAt      DateTime  @default(now())
@@ -90,4 +113,5 @@ model PerformanceScan {
 
   @@index([shop, createdAt])
   @@index([shop, status])
+  @@index([auditRunId, strategy])
 }

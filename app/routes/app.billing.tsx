@@ -117,7 +117,10 @@ export default function BillingPage() {
   const canStart = data.isVerified && data.planSelectionConfigured && !active;
   const shopSlug = data.shop.replace(/\.myshopify\.com$/i, "");
   const shopBillingUrl = `https://admin.shopify.com/store/${encodeURIComponent(shopSlug)}/settings/billing`;
-  const statusText = statusLabel(subscription?.status, data.isVerified);
+  const statusText = statusLabel(
+    subscription?.status ?? data.subscriptionStatus,
+    data.isVerified,
+  );
   const badgeClass = active
     ? `${styles.badge} ${styles.badgeActive}`
     : styles.badge;
@@ -203,7 +206,9 @@ export default function BillingPage() {
             ) : (
               <p className={styles.explainer}>
                 {data.isVerified
-                  ? "Shopify reports no active subscription for this store."
+                  ? data.subscriptionStatus === "NOT_SUBSCRIBED"
+                    ? "Shopify reports no current active subscription for this store."
+                    : `Shopify reports no current active subscription. Latest status: ${statusText}${data.lastStatusEvent ? ` (${data.lastStatusEvent.type}, ${dateLabel(data.lastStatusEvent.occurredAt)})` : ""}.`
                   : "Subscription status is unavailable until Partner API settings are configured."}
               </p>
             )}
@@ -327,7 +332,7 @@ export default function BillingPage() {
                     ? "Billing setup required"
                     : !data.planSelectionConfigured
                       ? "Set app handle"
-                      : subscription?.status === "CANCELLED"
+                      : data.subscriptionStatus === "CANCELLED"
                         ? "Reactivate Performance Pro"
                         : "Start Performance Pro"}
               </button>

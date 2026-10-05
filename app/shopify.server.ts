@@ -7,6 +7,22 @@ import {
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server";
 
+if (process.env.NODE_ENV === "production") {
+  const required = [
+    "DATABASE_URL",
+    "SHOPIFY_API_KEY",
+    "SHOPIFY_API_SECRET",
+    "SHOPIFY_APP_URL",
+    "SHOPIFY_PARTNER_API_ACCESS_TOKEN",
+  ];
+  const missing = required.filter((name) => !process.env[name]?.trim());
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing required production configuration: ${missing.join(", ")}`,
+    );
+  }
+}
+
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,
   apiSecretKey: process.env.SHOPIFY_API_SECRET || "",

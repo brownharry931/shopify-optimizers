@@ -76,11 +76,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return {
     shop,
     hasActiveSubscription: planAccess.hasActiveSubscription,
-    subscriptionStatus: !planAccess.isVerified
-      ? "UNKNOWN"
-      : planAccess.hasActiveSubscription
-        ? "ACTIVE"
-        : "NOT_SUBSCRIBED",
+    subscriptionStatus: planAccess.subscriptionStatus,
     planName: PLAN_NAME,
     planPrice: PLAN_PRICE,
     planCurrency: PLAN_CURRENCY,
@@ -104,6 +100,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 function subscriptionLabel(status: string, active: boolean) {
   if (active) return "Active";
   if (status === "PENDING") return "Approval pending";
+  if (status === "CANCELLED") return "Cancelled";
+  if (status === "FROZEN") return "Frozen";
+  if (status === "EXPIRED") return "Expired";
+  if (status === "DECLINED") return "Declined";
   if (status === "NOT_SUBSCRIBED") return "Not subscribed";
   return "Needs verification";
 }
@@ -140,6 +140,9 @@ export default function Dashboard() {
             <div className={styles.actions}>
               <a className={styles.primaryAction} href="/app/scan">
                 Run storefront scan
+              </a>
+              <a className={styles.secondaryAction} href="/app/reports">
+                Performance reports
               </a>
               <a className={styles.secondaryAction} href="/app/billing">
                 {data.hasActiveSubscription

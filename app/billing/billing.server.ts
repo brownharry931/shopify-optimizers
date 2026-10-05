@@ -32,6 +32,23 @@ type PartnerApiResponse = {
   errors?: Array<{ message?: string }>;
 };
 
+type PartnerSubscriptionEvent = {
+  id: string;
+  eventType: string;
+  occurredAt: string;
+  state: string;
+  cancelEffectiveOn: string | null;
+};
+
+type PartnerEventsResponse = {
+  data?: {
+    events?: {
+      edges: Array<{ node: PartnerSubscriptionEvent }>;
+    };
+  };
+  errors?: Array<{ message?: string }>;
+};
+
 const DEFAULT_PARTNER_ORG_ID = "2522432";
 const DEFAULT_SHOPIFY_APP_GID = "gid://shopify/App/395164614657";
 const DEFAULT_SHOPIFY_APP_HANDLE = "speedboost-v2-1";
@@ -182,6 +199,67 @@ async function getPartnerActiveSubscription(shopId: string) {
   return result.data.activeSubscription;
 }
 
+// Shopify App Pricing doesn't send subscription-change webhooks. When there is
+// no live contract, query its historical event stream for the last known state.
+// This is display/reconciliation metadata only and never grants paid access.
+async function getLatestPartnerSubscriptionEvent(shopId: string) {
+  const { organizationId, accessToken, appGid } = partnerConfiguration();
+  try {
+    const response = await fetch(
+      `https://partners.shopify.com/${organizationId}/api/2026-07/graphql.json`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Shopify-Access-Token": accessToken,
+        },
+        body: JSON.stringify({
+          query: `query SpeedBoostSubscriptionHistory($filter: EventFilterInput!) {
+            events(filter: $filter, first: 1) {
+              edges {
+                node {
+                  id
+                  eventType
+                  occurredAt
+                  ... on SubscriptionStatus { state cancelEffectiveOn }
+                }
+              }
+            }
+          }`,
+          variables: {
+            filter: {
+              subjectId: appGid,
+              shopId,
+              eventTypes: [
+                "SUBSCRIPTION_CREATED",
+                "SUBSCRIPTION_UPDATED",
+                "SUBSCRIPTION_CANCELLATION_SCHEDULED",
+                "SUBSCRIPTION_CANCELED",
+                "SUBSCRIPTION_FROZEN",
+                "SUBSCRIPTION_UNFROZEN",
+              ],
+            },
+          },
+        }),
+        signal: AbortSignal.timeout(7_500),
+      },
+    );
+    const result = (await response.json()) as PartnerEventsResponse;
+    if (!response.ok || result.errors?.length) {
+      console.warn("Shopify subscription history lookup unavailable", {
+        status: response.status,
+      });
+      return null;
+    }
+    return result.data?.events?.edges[0]?.node || null;
+  } catch (error) {
+    console.warn("Shopify subscription history lookup failed", {
+      name: error instanceof Error ? error.name : "UnknownError",
+    });
+    return null;
+  }
+}
+
 export async function getVerifiedSubscription(admin: AdminApi, shop: string) {
   const hasPartnerConfiguration = Boolean(
     process.env.SHOPIFY_PARTNER_API_ACCESS_TOKEN?.trim(),
@@ -194,6 +272,8 @@ export async function getVerifiedSubscription(admin: AdminApi, shop: string) {
     }
     return {
       subscription: null,
+      subscriptionStatus: "UNKNOWN",
+      lastStatusEvent: null,
       isVerified: false,
       hasActiveSubscription: false,
       verificationError: message,
@@ -215,8 +295,54 @@ export async function getVerifiedSubscription(admin: AdminApi, shop: string) {
   }
 
   if (!remote) {
+    const lastStatusEvent = await getLatestPartnerSubscriptionEvent(shopId);
+    const statusFromEvent = lastStatusEvent?.state?.toUpperCase();
+    const subscriptionStatus =
+      statusFromEvent === "CANCELED"
+        ? "CANCELLED"
+        : statusFromEvent === "CREATED"
+          ? "PENDING"
+          : statusFromEvent === "FROZEN"
+            ? "FROZEN"
+            : statusFromEvent === "CANCELLATION_SCHEDULED"
+              ? "CANCELLED"
+              : "NOT_SUBSCRIBED";
+    const persistedStatus:
+      | "PENDING"
+      | "CANCELLED"
+      | "DECLINED"
+      | "EXPIRED"
+      | "FROZEN"
+      | "UNKNOWN" = ["PENDING", "CANCELLED", "DECLINED", "EXPIRED", "FROZEN"].includes(
+      subscriptionStatus,
+    )
+      ? (subscriptionStatus as
+          | "PENDING"
+          | "CANCELLED"
+          | "DECLINED"
+          | "EXPIRED"
+          | "FROZEN")
+      : "UNKNOWN";
+    await prisma.subscription.updateMany({
+      where: { shop },
+      data: {
+        status: persistedStatus,
+        cancelAtEndOfCycle: statusFromEvent === "CANCELLATION_SCHEDULED",
+        expiresAt: lastStatusEvent?.cancelEffectiveOn
+          ? new Date(`${lastStatusEvent.cancelEffectiveOn}T00:00:00Z`)
+          : null,
+      },
+    });
     return {
       subscription: null,
+      subscriptionStatus,
+      lastStatusEvent: lastStatusEvent
+        ? {
+            type: lastStatusEvent.eventType,
+            occurredAt: lastStatusEvent.occurredAt,
+            cancelEffectiveOn: lastStatusEvent.cancelEffectiveOn,
+          }
+        : null,
       isVerified: true,
       hasActiveSubscription: false,
     };
@@ -321,6 +447,8 @@ export async function getVerifiedSubscription(admin: AdminApi, shop: string) {
 
   return {
     subscription,
+    subscriptionStatus: "ACTIVE",
+    lastStatusEvent: null,
     isVerified: true,
     hasActiveSubscription: true,
   };

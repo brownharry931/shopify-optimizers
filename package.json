@@ -16,7 +16,8 @@
     "shopify": "shopify",
     "prisma": "prisma",
     "vite": "vite",
-    "typecheck": "react-router typegen && tsc --noEmit"
+    "typecheck": "react-router typegen && tsc --noEmit",
+    "test": "tsx --test app/performance/*.test.ts"
   },
   "type": "module",
   "engines": {
@@ -53,6 +54,7 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
     "prettier": "^3.6.2",
+    "tsx": "4.23.15",
     "typescript": "^5.9.3",
     "vite": "^7.3.1"
   },

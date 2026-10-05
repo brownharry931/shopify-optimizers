@@ -1,7 +1,12 @@
 import { isIP } from "node:net";
 import prisma from "../db.server";
+import { selectCruxFieldData, type PageSpeedFieldSet } from "./field-data";
+import {
+  buildTargetUrl,
+  normalizeTargetPath,
+  type ScanStrategy,
+} from "./scan-targets";
 
-const MAX_SCANS_PER_HOUR = 3;
 const scanFindings = [
   "largest-contentful-paint-element",
   "lcp-discovery",
@@ -26,6 +31,8 @@ type LighthouseAudit = {
 
 type PageSpeedResponse = {
   error?: { message?: string };
+  loadingExperience?: PageSpeedFieldSet;
+  originLoadingExperience?: PageSpeedFieldSet;
   lighthouseResult?: {
     categories?: { performance?: { score?: number | null } };
     audits?: Record<string, LighthouseAudit>;
@@ -59,16 +66,24 @@ function explainProviderError(message: string) {
   return "The storefront scan provider could not complete this scan. Please retry shortly.";
 }
 
-export async function runStorefrontScan(shop: string, storefrontUrl: string) {
+export async function runStorefrontScan(
+  shop: string,
+  primaryOrigin: string,
+  targetPath: string,
+  strategy: ScanStrategy,
+  auditRunId: string,
+) {
   if (!/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i.test(shop)) {
     throw new Error(
       "The authenticated Shopify domain is not valid for scanning.",
     );
   }
 
+  const normalizedTarget = normalizeTargetPath(targetPath);
+  const pageUrl = buildTargetUrl(primaryOrigin, normalizedTarget.targetPath);
   let target: URL;
   try {
-    target = new URL(storefrontUrl);
+    target = new URL(primaryOrigin);
   } catch {
     throw new Error("Shopify did not provide a valid primary storefront URL.");
   }
@@ -96,20 +111,18 @@ export async function runStorefrontScan(shop: string, storefrontUrl: string) {
   await prisma.performanceScan.deleteMany({
     where: { shop, createdAt: { lt: retentionCutoff } },
   });
-
-  const since = new Date(now.getTime() - 60 * 60 * 1000);
-  const scansInWindow = await prisma.performanceScan.count({
-    where: { shop, createdAt: { gte: since } },
+  await prisma.auditRun.deleteMany({
+    where: { shop, createdAt: { lt: retentionCutoff } },
   });
-  if (scansInWindow >= MAX_SCANS_PER_HOUR) {
-    throw new Error(
-      "Scan limit reached: up to three scans per store each hour.",
-    );
-  }
 
-  const pageUrl = `${target.origin}/`;
   const scan = await prisma.performanceScan.create({
-    data: { shop, pageUrl, strategy: "mobile" },
+    data: {
+      shop,
+      auditRunId,
+      pageUrl,
+      template: normalizedTarget.template,
+      strategy,
+    },
   });
 
   try {
@@ -117,7 +130,7 @@ export async function runStorefrontScan(shop: string, storefrontUrl: string) {
       "https://www.googleapis.com/pagespeedonline/v5/runPagespeed",
     );
     endpoint.searchParams.set("url", pageUrl);
-    endpoint.searchParams.set("strategy", "mobile");
+    endpoint.searchParams.set("strategy", strategy);
     endpoint.searchParams.append("category", "performance");
     if (process.env.GOOGLE_PAGESPEED_API_KEY?.trim()) {
       endpoint.searchParams.set(
@@ -146,6 +159,10 @@ export async function runStorefrontScan(shop: string, storefrontUrl: string) {
       );
     }
 
+    const fieldData = selectCruxFieldData(
+      payload.loadingExperience,
+      payload.originLoadingExperience,
+    );
     const findings: ScanFinding[] = scanFindings.flatMap((id) => {
       const audit = audits[id];
       if (!audit || audit.score === 1 || audit.score === null) return [];
@@ -175,6 +192,8 @@ export async function runStorefrontScan(shop: string, storefrontUrl: string) {
         })(),
         fcpMs: numericAuditValue(audits, "first-contentful-paint"),
         speedIndexMs: numericAuditValue(audits, "speed-index"),
+        fieldDataSource: fieldData?.source ?? null,
+        fieldData: fieldData?.metrics,
         findings,
         completedAt: new Date(),
       },
@@ -198,7 +217,9 @@ export async function runStorefrontScan(shop: string, storefrontUrl: string) {
 
 export function publicScan(scan: {
   id: string;
+  auditRunId?: string | null;
   pageUrl: string;
+  template?: string;
   strategy: string;
   status: string;
   performance: number | null;
@@ -207,6 +228,8 @@ export function publicScan(scan: {
   cls: number | null;
   fcpMs: number | null;
   speedIndexMs: number | null;
+  fieldDataSource?: string | null;
+  fieldData?: unknown;
   findings: unknown;
   error: string | null;
   createdAt: Date;
@@ -219,5 +242,25 @@ export function publicScan(scan: {
     findings: Array.isArray(scan.findings)
       ? (scan.findings as ScanFinding[])
       : [],
+  };
+}
+
+export function publicAudit(audit: {
+  id: string;
+  targetPath: string;
+  pageUrl: string;
+  template: string;
+  strategies: string[];
+  status: string;
+  error: string | null;
+  createdAt: Date;
+  completedAt: Date | null;
+  scans: Array<Parameters<typeof publicScan>[0]>;
+}) {
+  return {
+    ...audit,
+    createdAt: audit.createdAt.toISOString(),
+    completedAt: audit.completedAt?.toISOString() || null,
+    scans: audit.scans.map(publicScan),
   };
 }
