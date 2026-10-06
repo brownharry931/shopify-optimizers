@@ -335,6 +335,26 @@
   line-height: 1.55;
 }
 
+.pp-findingGuidance {
+  margin-top: 13px;
+  padding: 12px 14px;
+  border-radius: 9px;
+  background: #f3f6fc;
+}
+
+.pp-findingGuidance > strong {
+  color: #263b76;
+  font-size: 12px;
+}
+
+.pp-findingGuidance small {
+  display: block;
+  margin-top: 8px;
+  color: #6b778c;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 @media (max-width: 760px) {
   .pp-scanHero,
   .pp-scanPanelHeader {

@@ -14,8 +14,9 @@ Shopify's current App Review/AI Toolkit process must be checked again against th
 
 ## APIs and scopes
 
-- [ ] Request `read_products` for product/media discovery and `read_themes` for theme inventory/source diagnostics through the existing app's next Shopify configuration release.
-- [ ] Request `write_themes` only for the planned draft-theme workflow; Shopify must separately grant the public-app theme-write exemption before any file writes are possible.
+- [x] Configure `read_products` for planned product/media discovery and `read_themes` for theme inventory/source diagnostics in the existing app manifest and OAuth SDK.
+- [x] Configure `write_themes` for the planned draft-theme workflow; Shopify must separately grant the public-app theme-write exemption before any file writes are possible.
+- [ ] Sync the changed app version and confirm merchant consent/reinstall on a development store; scope configuration is not proof that access was granted.
 - [x] Embed activation uses a signed Shopify App Proxy heartbeat and does not itself require `read_themes`.
 - [ ] Confirm the requested scopes, consent/reinstall flow, and app-proxy configuration through Shopify CLI on a development store.
 - [ ] Do not request customer, order, payment, checkout, or unrelated file scopes; no implemented workflow currently needs them.

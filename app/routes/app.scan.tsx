@@ -6,6 +6,7 @@ import { authenticate } from "../shopify.server";
 import { getVerifiedSubscription } from "../billing/billing.server";
 import prisma from "../db.server";
 import type { CruxFieldMetrics } from "../performance/field-data";
+import { guidanceForFinding } from "../performance/recommendations";
 import {
   normalizeTargetPath,
   parseStrategies,
@@ -322,15 +323,23 @@ export default function ScanPage() {
                         <h4>Opportunities to investigate</h4>
                         {scan.findings.length ? (
                           <ul className="pp-scanFindings">
-                            {scan.findings.map((finding) => (
-                              <li key={finding.id}>
-                                <strong>{finding.title}</strong>
-                                {finding.displayValue ? (
-                                  <span>{finding.displayValue}</span>
-                                ) : null}
-                                <p>{finding.description}</p>
-                              </li>
-                            ))}
+                            {scan.findings.map((finding) => {
+                              const guidance = guidanceForFinding(finding.id);
+                              return (
+                                <li key={finding.id}>
+                                  <strong>{finding.title}</strong>
+                                  {finding.displayValue ? (
+                                    <span>{finding.displayValue}</span>
+                                  ) : null}
+                                  <p>{finding.description}</p>
+                                  <div className="pp-findingGuidance">
+                                    <strong>{guidance.area}: what to do</strong>
+                                    <p>{guidance.nextStep}</p>
+                                    <small>{guidance.automation}</small>
+                                  </div>
+                                </li>
+                              );
+                            })}
                           </ul>
                         ) : (
                           <p>
