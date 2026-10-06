@@ -89,6 +89,31 @@ model AuditRun {
 }
 
 // Synthetic Lighthouse/PageSpeed results. These are never presented as field data.
+model ThemeAssetChange {
+  id             String   @id @default(cuid())
+  shop           String
+  themeId        String
+  themeName      String
+  filename       String
+  activeKey      String?  @unique
+  originalContent String  @db.Text
+  sourceHash     String
+  optimizedHash  String
+  originalBytes  Int
+  optimizedBytes Int
+  status         String   @default("PREPARED")
+  shopifyJobId   String?
+  error          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  appliedAt      DateTime?
+  rolledBackAt   DateTime?
+
+  @@index([shop, createdAt])
+  @@index([shop, themeId, filename])
+  @@index([shop, status])
+}
+
 model PerformanceScan {
   id             String    @id @default(cuid())
   shop           String

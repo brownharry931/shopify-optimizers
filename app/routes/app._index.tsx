@@ -144,6 +144,9 @@ export default function Dashboard() {
               <a className={styles.secondaryAction} href="/app/reports">
                 Performance reports
               </a>
+              <a className={styles.secondaryAction} href="/app/optimize">
+                Preview theme CSS/JS minification
+              </a>
               <a className={styles.secondaryAction} href="/app/billing">
                 {data.hasActiveSubscription
                   ? "Manage subscription"

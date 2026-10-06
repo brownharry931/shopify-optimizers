@@ -355,6 +355,143 @@
   line-height: 1.5;
 }
 
+.pp-optimizeForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.5fr);
+  align-items: end;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.pp-optimizeForm label {
+  display: grid;
+  gap: 8px;
+  color: #5c6a82;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.pp-optimizeForm select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--scan-line);
+  border-radius: 10px;
+  color: var(--scan-ink);
+  background: #fff;
+  font: inherit;
+}
+
+.pp-codePreview {
+  margin-top: 18px;
+  border: 1px solid var(--scan-line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.pp-codePreview summary {
+  padding: 13px 15px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.pp-codePreview pre {
+  max-height: 360px;
+  margin: 0;
+  padding: 16px;
+  overflow: auto;
+  border-top: 1px solid var(--scan-line);
+  background: #f7f9fd;
+  color: #253047;
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.pp-applyForm,
+.pp-rollbackForm {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid var(--scan-line);
+  border-radius: 12px;
+  background: #f8faff;
+}
+
+.pp-applyForm label,
+.pp-rollbackForm label {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: #485a78;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.pp-applyForm input[type="checkbox"],
+.pp-rollbackForm input[type="checkbox"] {
+  flex: 0 0 auto;
+  margin-top: 3px;
+  accent-color: #2a438c;
+}
+
+.pp-secondaryButton {
+  min-height: 40px;
+  padding: 9px 13px;
+  border: 1px solid #c9d4e7;
+  border-radius: 9px;
+  color: #243b79;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pp-secondaryButton:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.pp-changeHistory {
+  display: grid;
+  gap: 12px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pp-changeHistory > li {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px;
+  border: 1px solid var(--scan-line);
+  border-radius: 12px;
+}
+
+.pp-changeHistory > li > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.pp-changeHistory span,
+.pp-changeHistory small {
+  color: var(--scan-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.pp-changeHistory p {
+  margin: 4px 0 0;
+  color: #8a2924;
+  font-size: 12px;
+}
+
 @media (max-width: 760px) {
   .pp-scanHero,
   .pp-scanPanelHeader {

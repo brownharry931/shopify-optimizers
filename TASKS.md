@@ -26,7 +26,8 @@ Tasks are marked complete only after implementation and the phase's applicable v
 - [x] Add a reproducible npm lockfile, a local PostgreSQL migration, and a GitHub Actions verification workflow.
 - [x] Add a Codespaces dev container with private PostgreSQL for browser-based development.
 - [x] Add the missing default locale file required by Shopify CLI's Theme App Extension scanner after the first Codespaces run reported `ENOENT`.
-- [x] `npm run typecheck`, `npm run lint`, `npm run build`, and `npm audit` passed in this sandbox; audit reports zero known vulnerabilities.
+- [x] `npm test` (15 tests), `npm run typecheck`, `npm run lint`, and `npm run build` pass in the sandbox.
+- [ ] Revalidate Prisma schema/migrations on a machine with the Prisma engine. `npm audit --omit=dev` is clean; full `npm audit` currently reports 4 moderate findings in the development-only Shopify CLI dependency chain and needs review.
 - [x] Re-run `shopify app dev` in Codespaces and confirm the missing-locale Theme Check error is gone.
 - [x] Use the existing public SpeedBoost app identity (no duplicate app); the Codespaces-only `performance-pro` config alias was linked to SpeedBoost. Keep that per-environment manifest and temporary URL out of Git.
 - [x] Codespaces dev log confirmed the forwarded HTTPS app URL; manifest and server now request only `read_products`, `read_themes`, and `write_themes` for the planned optimization workflows. The scopes have not yet been re-approved on the dev store.
@@ -64,9 +65,13 @@ Tasks are marked complete only after implementation and the phase's applicable v
 
 - [x] Add standalone CSS minification with `lightningcss`, an 8 MB input bound, real UTF-8 byte accounting, and syntax-error rejection.
 - [x] Add standalone JavaScript minification with `esbuild`, retained legal comments, an 8 MB input bound, and no code execution/bundling.
-- [x] Add unit tests proving measured output size and sample JavaScript behavior; these engines do not yet read or publish Shopify theme assets.
-- [ ] Integrate transforms with a durable, shop-isolated job/artifact pipeline that preserves original bytes and records source/output hashes.
-- [ ] Implement actual theme preview/apply/rollback only after Shopify approves the public-app theme-write exemption; do not expose inactive controls before then.
+- [x] Add unit tests proving measured output size and sample JavaScript behavior.
+- [x] Add paid-gated theme inventory and static CSS/JS minification preview with raw byte counts and a 1 MB interactive-preview limit; applying is a separate explicit confirmation.
+- [ ] Verify `read_themes` access and the theme-file GraphQL queries on an installed development store.
+- [x] Implement explicit CSS/JS apply only to an unpublished/development theme, persisting original bytes and SHA-256 hashes before Shopify writes; detect stale sources, verify async completion, and refuse rollback if the asset or theme has changed/published.
+- [x] Add unit tests for allowed theme roles, interrupted write recovery, pending/completed states, rollback confirmation, and merchant-edit conflict handling.
+- [ ] Validate the new migration and exercise read/write, async completion, conflict protection, and rollback on an installed development store after Shopify grants the public-app theme-write exemption.
+- [ ] Add merchant-controlled publish flow only after a safe theme copy/diff workflow and Shopify access are verified; the app currently never publishes a theme.
 - [ ] Build independently configurable, measured image/media/lazy-load/LCP/font modules with above-the-fold exclusions and a global emergency disable.
 - [ ] Add resource diagnostics, compatibility exclusions, conflict checks, and verified per-module rollback.
 

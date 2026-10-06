@@ -18,7 +18,8 @@ Shopify's current App Review/AI Toolkit process must be checked again against th
 - [x] Configure `write_themes` for the planned draft-theme workflow; Shopify must separately grant the public-app theme-write exemption before any file writes are possible.
 - [ ] Sync the changed app version and confirm merchant consent/reinstall on a development store; scope configuration is not proof that access was granted.
 - [x] Embed activation uses a signed Shopify App Proxy heartbeat and does not itself require `read_themes`.
-- [ ] Confirm the requested scopes, consent/reinstall flow, and app-proxy configuration through Shopify CLI on a development store.
+- [x] Implement theme inventory/static CSS/JS minification preview and explicitly confirmed writes only to unpublished/development themes; store exact originals and hash checks before any restore. No live-theme write or app-driven publish operation is exposed.
+- [ ] Validate the migration and confirm requested scope consent, public-app exemption, and theme-file GraphQL read/write behavior on a development store.
 - [ ] Do not request customer, order, payment, checkout, or unrelated file scopes; no implemented workflow currently needs them.
 - [ ] Verify GraphQL query against a development shop.
 
@@ -55,19 +56,22 @@ Shopify's current App Review/AI Toolkit process must be checked again against th
 
 - [x] Dashboard displays actual authenticated shop identity and explicitly shows no metrics until a real scanner runs.
 - [x] No fake performance measurements, testimonials, or guaranteed score claims are present in the implemented dashboard.
-- [x] A billing-gated mobile homepage scan uses Google PageSpeed Insights and persists real Lighthouse output, explicitly labeled synthetic lab data.
-- [ ] Desktop and collection/product scans, matching before/after evidence, automatic optimization, rollback, and monitoring are not implemented or tested.
+- [x] Billing-gated mobile/desktop audits support homepage, product, collection, page, and blog paths; real Lighthouse results are labeled synthetic lab data and CrUX is separate.
+- [x] The Theme Optimization flow includes tested minifiers plus guarded draft-theme apply/rollback code; there are no claims of live performance improvement.
+- [ ] Validate the audits and minifier theme read/write/rollback against an installed development store; scheduled monitoring and controlled before/after storefront measurement are not complete.
 
 ## Build, tests, and release
 
+- [x] `npm test` passed unit tests for transforms, audit input, recommendation guidance, and safe theme-change policy.
 - [x] `npm run typecheck` passed in the sandbox.
 - [x] `npm run build` passed in the sandbox.
 - [x] `npm run lint` passed in the sandbox.
-- [x] `npm audit` reported zero vulnerabilities after removing unused codegen dependencies and applying a patched deepmerge-ts override; re-run on every dependency update.
+- [x] `npm audit --omit=dev` reports zero production dependency vulnerabilities.
+- [ ] Review 4 moderate findings currently reported by full `npm audit` in the development-only Shopify CLI dependency chain; do not downgrade the supported CLI blindly.
 - [ ] Prisma engine validation/migrations and Shopify CLI config validation could not be completed in the sandbox because Prisma binary download was blocked and app has not been linked to a Dev Dashboard client ID.
 - [ ] A Codespaces run confirmed the correct HTTPS app URL/scope and theme extension checks, but `app info` reported no web process and port 3000 had no listener. Added a concrete `shopify.web.toml`; rerun Shopify CLI and verify the web process/database migration before calling the embedded app working.
 - [ ] Install/upgrade/reinstall/uninstall, billing edge cases, webhook delivery, and theme compatibility require real Shopify development-store QA.
 
 ## Known limitations / submission status
 
-The current repository contains the hosted billing foundation, a first billing-gated mobile homepage scan, and code for signed Theme App Embed verification. The merchant screenshot shows an active billing status, but the new scan and app-proxy integrations have not yet been validated on a live development store in this sandbox. Product-level optimization features (image compression/resizing, responsive images, lazy loading, critical CSS, JS/CSS minification/deferral, preload/app control), multi-template and desktop scans, before/after evidence, rollback, monitoring, and final support/legal/public-listing requirements remain incomplete. The Prisma migration, App Proxy sync, Render production deployment, and real store QA are still pending. **Not ready for Shopify App Store submission.**
+The current repository contains hosted billing code, multi-template mobile/desktop audit and CrUX/report history, safe standalone CSS/JS minifiers, and a Theme Optimization workflow that lists static theme files, previews minified output, and can explicitly apply/restore only on unpublished/development themes with saved originals and hash conflict checks. None of the new theme reads/writes, migration, scope grant, or rollback has been verified on a development store; a public-app theme-write exemption is still required. Image conversion/responsive markup/lazy loading, critical CSS, safe script/font/app optimization, app-driven theme duplication/publishing, durable background jobs, scheduled monitoring, multi-theme compatibility testing, and final support/legal/listing work remain incomplete. **Not ready for Shopify App Store submission.**
