@@ -1,9 +1,4 @@
-import {
-  Form,
-  useActionData,
-  useLoaderData,
-  useNavigation,
-} from "react-router";
+import { useFetcher, useLoaderData } from "react-router";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { createHash } from "node:crypto";
 import { boundary } from "@shopify/shopify-app-react-router/server";
@@ -19,6 +14,13 @@ import {
   verifyThemeChangeState,
   type ThemeChangeStatus,
 } from "../optimization/theme-change-policy";
+import {
+  deferCompatibleThemeScripts,
+  inspectShopifyImageTags,
+  optimizeShopifyImageTags,
+  type LiquidImageTagCandidate,
+  type ThemeLiquidOptimizationMode,
+} from "../optimization/liquid-transform.server";
 
 type ThemeSummary = { id: string; name: string; role: string };
 type ThemeAsset = {
@@ -27,6 +29,15 @@ type ThemeAsset = {
   size: number;
   checksumMd5: string | null;
 };
+type ThemeLiquidFile = Pick<ThemeAsset, "filename" | "size">;
+type CoreFieldMetrics = {
+  lcpP75Ms?: number;
+  inpP75Ms?: number;
+  clsP75?: number;
+  lcpCategory?: string;
+  inpCategory?: string;
+  clsCategory?: string;
+};
 type OptimizerActionResult =
   | { ok: false; intent: "error"; error: string }
   | {
@@ -34,7 +45,31 @@ type OptimizerActionResult =
       intent: "list-assets";
       theme: ThemeSummary;
       assets: ThemeAsset[];
+      liquidFiles: ThemeLiquidFile[];
       truncated: boolean;
+      notice: string;
+    }
+  | {
+      ok: true;
+      intent: "inspect-liquid";
+      theme: ThemeSummary;
+      filename: string;
+      images: LiquidImageTagCandidate[];
+      notice: string;
+    }
+  | {
+      ok: true;
+      intent: "preview-liquid";
+      theme: ThemeSummary;
+      filename: string;
+      mode: ThemeLiquidOptimizationMode;
+      imageIndex: number | null;
+      optimizedCode: string;
+      sourceBytes: number;
+      outputBytes: number;
+      changedCount: number;
+      skippedCount: number;
+      sourceHash: string;
       notice: string;
     }
   | {
@@ -213,6 +248,39 @@ function validateAssetFilename(value: FormDataEntryValue | null): string {
   return value;
 }
 
+function validateLiquidFilename(
+  value: FormDataEntryValue | null,
+  mode: ThemeLiquidOptimizationMode,
+): string {
+  const allowed =
+    mode === "defer-js"
+      ? value === "layout/theme.liquid"
+      : typeof value === "string" &&
+        /^((sections|snippets)\/[A-Za-z0-9_.-]+\.liquid)$/i.test(value) &&
+        !value.includes("..");
+  if (!allowed || typeof value !== "string" || value.length > 240) {
+    throw new Error(
+      mode === "defer-js"
+        ? "JavaScript deferral is limited to layout/theme.liquid."
+        : "Choose a Liquid section or snippet from this theme's read-only inventory.",
+    );
+  }
+  return value;
+}
+
+function validateLiquidMode(
+  value: FormDataEntryValue | null,
+): ThemeLiquidOptimizationMode {
+  if (
+    value !== "defer-js" &&
+    value !== "lazy-images" &&
+    value !== "prioritize-lcp"
+  ) {
+    throw new Error("Choose a supported theme optimization.");
+  }
+  return value;
+}
+
 async function readGraphql<T>(
   admin: Awaited<ReturnType<typeof authenticate.admin>>["admin"],
   query: string,
@@ -313,11 +381,65 @@ function isUniqueConstraintConflict(error: unknown) {
   );
 }
 
+async function createAndSubmitThemeChange(
+  admin: Awaited<ReturnType<typeof authenticate.admin>>["admin"],
+  shop: string,
+  theme: ThemeSummary,
+  filename: string,
+  originalContent: string,
+  optimizedContent: string,
+) {
+  const change = await prisma.themeAssetChange.create({
+    data: {
+      shop,
+      themeId: theme.id,
+      themeName: theme.name,
+      filename,
+      activeKey: activeAssetKey(shop, theme.id, filename),
+      originalContent,
+      sourceHash: assetHash(originalContent),
+      optimizedHash: assetHash(optimizedContent),
+      originalBytes: Buffer.byteLength(originalContent, "utf8"),
+      optimizedBytes: Buffer.byteLength(optimizedContent, "utf8"),
+      status: "PREPARED",
+    },
+  });
+
+  try {
+    const shopifyJobId = await submitThemeAsset(
+      admin,
+      theme.id,
+      filename,
+      optimizedContent,
+    );
+    await prisma.themeAssetChange.updateMany({
+      where: { id: change.id, shop },
+      data: { status: "SUBMITTED", shopifyJobId, error: null },
+    });
+  } catch (error) {
+    await prisma.themeAssetChange.updateMany({
+      where: { id: change.id, shop },
+      data: {
+        status: "FAILED",
+        activeKey: null,
+        error:
+          error instanceof Error
+            ? error.message.slice(0, 1000)
+            : "Shopify rejected the theme file update.",
+      },
+    });
+    throw error;
+  }
+
+  return change.id;
+}
+
 async function loadThemeAssets(
   admin: Awaited<ReturnType<typeof authenticate.admin>>["admin"],
   themeId: string,
 ) {
   const assets: ThemeAsset[] = [];
+  const liquidFiles: ThemeLiquidFile[] = [];
   let after: string | null = null;
   let theme: ThemeSummary | null = null;
   let truncated = false;
@@ -333,8 +455,17 @@ async function loadThemeAssets(
     theme = { id: data.theme.id, name: data.theme.name, role: data.theme.role };
     assets.push(
       ...data.theme.files.nodes.filter((asset) =>
-        /\.(?:css|js|mjs)$/i.test(asset.filename),
+        /^assets\/.+\.(?:css|js|mjs)$/i.test(asset.filename),
       ),
+    );
+    liquidFiles.push(
+      ...data.theme.files.nodes
+        .filter((file) =>
+          /^(?:sections|snippets)\/[A-Za-z0-9_.-]+\.liquid$/i.test(
+            file.filename,
+          ),
+        )
+        .map((file) => ({ filename: file.filename, size: file.size })),
     );
     const pageInfo: ThemeAssetPageInfo = data.theme.files.pageInfo;
     if (!pageInfo.hasNextPage) break;
@@ -349,7 +480,48 @@ async function loadThemeAssets(
   }
 
   if (!theme) throw new Error("Shopify did not return a theme record.");
-  return { theme, assets, truncated };
+  return { theme, assets, liquidFiles, truncated };
+}
+
+async function rebuildSavedThemeChange(
+  filename: string,
+  source: string,
+  expectedHash: string,
+): Promise<string | null> {
+  if (/\.css$/i.test(filename)) {
+    const result = minifyCssAsset(source);
+    return assetHash(result.code) === expectedHash ? result.code : null;
+  }
+  if (/\.(?:js|mjs)$/i.test(filename)) {
+    const result = await minifyJavaScriptAsset(source);
+    return assetHash(result.code) === expectedHash ? result.code : null;
+  }
+  if (filename === "layout/theme.liquid") {
+    const result = deferCompatibleThemeScripts(source);
+    return result.changedCount > 0 && assetHash(result.code) === expectedHash
+      ? result.code
+      : null;
+  }
+  if (/^(?:sections|snippets)\/[A-Za-z0-9_.-]+\.liquid$/i.test(filename)) {
+    const lazy = optimizeShopifyImageTags(source, "lazy-images");
+    if (lazy.changedCount > 0 && assetHash(lazy.code) === expectedHash) {
+      return lazy.code;
+    }
+    for (const candidate of inspectShopifyImageTags(source)) {
+      const priority = optimizeShopifyImageTags(
+        source,
+        "prioritize-lcp",
+        candidate.index,
+      );
+      if (
+        priority.changedCount > 0 &&
+        assetHash(priority.code) === expectedHash
+      ) {
+        return priority.code;
+      }
+    }
+  }
+  return null;
 }
 
 async function verifyChangeState(
@@ -372,7 +544,7 @@ async function verifyChangeState(
     return {
       status: "APPLIED",
       notice:
-        "Shopify confirms the minified asset is present on this draft theme.",
+        "Shopify confirms the saved optimization is present on this draft theme.",
     };
   }
 
@@ -384,10 +556,12 @@ async function verifyChangeState(
           "This theme is not an unpublished/development theme. Automatic writes are blocked.",
       };
     }
-    const result = /\.css$/i.test(change.filename)
-      ? minifyCssAsset(change.originalContent)
-      : await minifyJavaScriptAsset(change.originalContent);
-    if (assetHash(result.code) !== change.optimizedHash) {
+    const optimizedCode = await rebuildSavedThemeChange(
+      change.filename,
+      change.originalContent,
+      change.optimizedHash,
+    );
+    if (!optimizedCode) {
       await prisma.themeAssetChange.updateMany({
         where: { id: change.id, shop: change.shop },
         data: {
@@ -405,7 +579,7 @@ async function verifyChangeState(
       admin,
       change.themeId,
       change.filename,
-      result.code,
+      optimizedCode,
     );
     await prisma.themeAssetChange.updateMany({
       where: { id: change.id, shop: change.shop },
@@ -467,32 +641,62 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       subscriptionVerified: access.isVerified,
       themes: [] as ThemeSummary[],
       changes: [],
+      latestScan: null,
       themeError: null as string | null,
     };
   }
 
-  const changes = await prisma.themeAssetChange.findMany({
-    where: { shop: session.shop },
-    orderBy: { createdAt: "desc" },
-    take: 20,
-    select: {
-      id: true,
-      themeId: true,
-      themeName: true,
-      filename: true,
-      originalBytes: true,
-      optimizedBytes: true,
-      status: true,
-      error: true,
-      createdAt: true,
-    },
-  });
+  const [changes, latestScan] = await Promise.all([
+    prisma.themeAssetChange.findMany({
+      where: { shop: session.shop },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      select: {
+        id: true,
+        themeId: true,
+        themeName: true,
+        filename: true,
+        originalBytes: true,
+        optimizedBytes: true,
+        status: true,
+        error: true,
+        createdAt: true,
+      },
+    }),
+    prisma.performanceScan.findFirst({
+      where: { shop: session.shop, status: "COMPLETE" },
+      orderBy: { createdAt: "desc" },
+      select: {
+        pageUrl: true,
+        strategy: true,
+        performance: true,
+        lcpMs: true,
+        tbtMs: true,
+        cls: true,
+        fieldDataSource: true,
+        fieldData: true,
+        createdAt: true,
+      },
+    }),
+  ]);
   const publicChanges: ThemeChangeView[] = (
     changes as Array<Omit<ThemeChangeView, "createdAt"> & { createdAt: Date }>
   ).map((change) => ({
     ...change,
     createdAt: change.createdAt.toISOString(),
   }));
+  const latestScanView = latestScan
+    ? {
+        ...latestScan,
+        fieldData:
+          latestScan.fieldData &&
+          typeof latestScan.fieldData === "object" &&
+          !Array.isArray(latestScan.fieldData)
+            ? (latestScan.fieldData as CoreFieldMetrics)
+            : null,
+        createdAt: latestScan.createdAt.toISOString(),
+      }
+    : null;
 
   try {
     const data = await readGraphql<{
@@ -503,6 +707,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       subscriptionVerified: true,
       themes: data.themes.nodes,
       changes: publicChanges,
+      latestScan: latestScanView,
       themeError: null,
     };
   } catch (error) {
@@ -511,6 +716,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       subscriptionVerified: true,
       themes: [] as ThemeSummary[],
       changes: publicChanges,
+      latestScan: latestScanView,
       themeError:
         error instanceof Error
           ? error.message
@@ -545,6 +751,31 @@ export const action = async ({
         intent: "list-assets" as const,
         ...result,
         notice: "Read-only inventory. Shopify theme files were not changed.",
+      };
+    }
+
+    if (intent === "inspect-liquid") {
+      const filename = validateLiquidFilename(
+        form.get("filename"),
+        "lazy-images",
+      );
+      const current = await readThemeAsset(admin, themeId, filename);
+      if (
+        Buffer.byteLength(current.source, "utf8") >
+        MAX_INTERACTIVE_PREVIEW_BYTES
+      ) {
+        throw new Error(
+          "This Liquid file is larger than the safe 1 MB interactive preview limit.",
+        );
+      }
+      return {
+        ok: true as const,
+        intent: "inspect-liquid" as const,
+        theme: current.theme,
+        filename,
+        images: inspectShopifyImageTags(current.source),
+        notice:
+          "Read-only inspection of Shopify image_tag expressions. Raw img markup and dynamic Liquid are deliberately not rewritten.",
       };
     }
 
@@ -620,6 +851,75 @@ export const action = async ({
       };
     }
 
+    if (intent === "apply-liquid") {
+      if (form.get("confirmApply") !== "yes") {
+        throw new Error(
+          "Confirm the reviewed draft-theme change before applying it.",
+        );
+      }
+      const mode = validateLiquidMode(form.get("mode"));
+      const filename = validateLiquidFilename(form.get("filename"), mode);
+      const imageIndexValue = form.get("imageIndex");
+      const imageIndex =
+        typeof imageIndexValue === "string" && /^\d+$/.test(imageIndexValue)
+          ? Number(imageIndexValue)
+          : undefined;
+      if (mode === "prioritize-lcp" && imageIndex === undefined) {
+        throw new Error("Choose the exact LCP image expression to prioritize.");
+      }
+      const expectedSourceHash = form.get("sourceHash");
+      if (
+        typeof expectedSourceHash !== "string" ||
+        !/^[a-f0-9]{64}$/.test(expectedSourceHash)
+      ) {
+        throw new Error(
+          "The preview is missing a valid source checksum. Preview the file again.",
+        );
+      }
+      const current = await readThemeAsset(admin, themeId, filename);
+      if (!canWriteThemeRole(current.theme.role)) {
+        throw new Error(
+          "Changes are allowed only on an unpublished/development theme. The published theme is never modified by this workflow.",
+        );
+      }
+      if (assetHash(current.source) !== expectedSourceHash) {
+        throw new Error(
+          "The theme file changed after this preview. Generate a fresh preview before applying.",
+        );
+      }
+      if (
+        Buffer.byteLength(current.source, "utf8") >
+        MAX_INTERACTIVE_PREVIEW_BYTES
+      ) {
+        throw new Error("This file exceeds the safe interactive apply limit.");
+      }
+      const result =
+        mode === "defer-js"
+          ? deferCompatibleThemeScripts(current.source)
+          : optimizeShopifyImageTags(current.source, mode, imageIndex);
+      if (result.changedCount === 0) {
+        throw new Error(
+          "No supported image or script markup would change. No theme write was made.",
+        );
+      }
+      const changeId = await createAndSubmitThemeChange(
+        admin,
+        session.shop,
+        current.theme,
+        filename,
+        current.source,
+        result.code,
+      );
+      return {
+        ok: true as const,
+        intent: "change" as const,
+        changeId,
+        status: "SUBMITTED",
+        notice:
+          "Shopify accepted this reviewed change for the unpublished theme. Recheck its status before previewing; the live theme was not touched.",
+      };
+    }
+
     if (intent === "apply-minify") {
       if (form.get("confirmApply") !== "yes") {
         throw new Error("Confirm the draft-theme change before applying it.");
@@ -659,53 +959,68 @@ export const action = async ({
           "Minification did not reduce source bytes; no theme write was made.",
         );
       }
-      const change = await prisma.themeAssetChange.create({
-        data: {
-          shop: session.shop,
-          themeId,
-          themeName: current.theme.name,
-          filename,
-          activeKey: activeAssetKey(session.shop, themeId, filename),
-          originalContent: current.source,
-          sourceHash: expectedSourceHash,
-          optimizedHash: assetHash(result.code),
-          originalBytes: result.sourceBytes,
-          optimizedBytes: result.outputBytes,
-          status: "PREPARED",
-        },
-      });
-      try {
-        const shopifyJobId = await submitThemeAsset(
-          admin,
-          themeId,
-          filename,
-          result.code,
-        );
-        await prisma.themeAssetChange.updateMany({
-          where: { id: change.id, shop: session.shop },
-          data: { status: "SUBMITTED", shopifyJobId, error: null },
-        });
-      } catch (error) {
-        await prisma.themeAssetChange.updateMany({
-          where: { id: change.id, shop: session.shop },
-          data: {
-            status: "FAILED",
-            activeKey: null,
-            error:
-              error instanceof Error
-                ? error.message.slice(0, 1000)
-                : "Shopify rejected the theme file update.",
-          },
-        });
-        throw error;
-      }
+      const changeId = await createAndSubmitThemeChange(
+        admin,
+        session.shop,
+        current.theme,
+        filename,
+        current.source,
+        result.code,
+      );
       return {
         ok: true as const,
         intent: "change" as const,
-        changeId: change.id,
+        changeId,
         status: "SUBMITTED",
         notice:
           "Shopify accepted the minification request for the unpublished theme. Recheck its status before previewing; the live theme was not touched.",
+      };
+    }
+
+    if (intent === "preview-liquid") {
+      const mode = validateLiquidMode(form.get("mode"));
+      const filename = validateLiquidFilename(form.get("filename"), mode);
+      const imageIndexValue = form.get("imageIndex");
+      const imageIndex =
+        typeof imageIndexValue === "string" && /^\d+$/.test(imageIndexValue)
+          ? Number(imageIndexValue)
+          : undefined;
+      if (mode === "prioritize-lcp" && imageIndex === undefined) {
+        throw new Error("Choose the exact LCP image expression to preview.");
+      }
+      const current = await readThemeAsset(admin, themeId, filename);
+      const sourceBytes = Buffer.byteLength(current.source, "utf8");
+      if (sourceBytes > MAX_INTERACTIVE_PREVIEW_BYTES) {
+        throw new Error(
+          "This Liquid file is larger than the safe 1 MB interactive preview limit.",
+        );
+      }
+      const result =
+        mode === "defer-js"
+          ? deferCompatibleThemeScripts(current.source)
+          : optimizeShopifyImageTags(current.source, mode, imageIndex);
+      if (result.changedCount === 0) {
+        throw new Error(
+          mode === "defer-js"
+            ? "No compatible static first-party theme scripts were found. Dynamic, app, remote, inline, async, and module scripts are left untouched."
+            : "No compatible image_tag expressions need this change. Existing or dynamic loading hints were left untouched.",
+        );
+      }
+      return {
+        ok: true as const,
+        intent: "preview-liquid" as const,
+        theme: current.theme,
+        filename,
+        mode,
+        imageIndex: imageIndex ?? null,
+        optimizedCode: result.code,
+        sourceBytes,
+        outputBytes: Buffer.byteLength(result.code, "utf8"),
+        changedCount: result.changedCount,
+        skippedCount: result.skippedCount,
+        sourceHash: assetHash(current.source),
+        notice:
+          "Preview only. Review every changed line and test the draft storefront. No Shopify theme file has been changed.",
       };
     }
 
@@ -749,7 +1064,7 @@ export const action = async ({
       ok: false as const,
       intent: "error" as const,
       error: isUniqueConstraintConflict(error)
-        ? "This theme asset already has an active or pending SpeedBoost change. Recheck or roll it back before applying another optimization."
+        ? "This theme file already has an active or pending SpeedBoost change. Recheck or roll it back before applying another optimization."
         : error instanceof Error
           ? error.message
           : "The theme asset could not be inspected.",
@@ -761,28 +1076,171 @@ function bytes(value: number) {
   return `${new Intl.NumberFormat().format(value)} bytes`;
 }
 
+function milliseconds(value: number | undefined | null) {
+  if (value === undefined || value === null || !Number.isFinite(value)) {
+    return "No field data";
+  }
+  return value >= 1000 ? `${(value / 1000).toFixed(2)} s` : `${value} ms`;
+}
+
+function fieldStatus(value: string | undefined) {
+  if (value === "FAST") return "Good";
+  if (value === "AVERAGE") return "Needs improvement";
+  if (value === "SLOW") return "Poor";
+  return "Not classified";
+}
+
 export default function ThemeOptimizationPage() {
   const data = useLoaderData<typeof loader>();
-  const actionData = useActionData<typeof action>();
-  const navigation = useNavigation();
-  const busy = navigation.state !== "idle";
+  const inventoryFetcher = useFetcher<typeof action>();
+  const imageInspectionFetcher = useFetcher<typeof action>();
+  const minifyFetcher = useFetcher<typeof action>();
+  const liquidFetcher = useFetcher<typeof action>();
+  const historyFetcher = useFetcher<typeof action>();
+  const fetchers = [
+    inventoryFetcher,
+    imageInspectionFetcher,
+    minifyFetcher,
+    liquidFetcher,
+    historyFetcher,
+  ];
+  const busy = fetchers.some((fetcher) => fetcher.state !== "idle");
   const listed =
-    actionData?.ok && actionData.intent === "list-assets" ? actionData : null;
-  const preview =
-    actionData?.ok && actionData.intent === "preview-minify"
-      ? actionData
+    inventoryFetcher.data?.ok && inventoryFetcher.data.intent === "list-assets"
+      ? inventoryFetcher.data
       : null;
+  const inspection =
+    imageInspectionFetcher.data?.ok &&
+    imageInspectionFetcher.data.intent === "inspect-liquid"
+      ? imageInspectionFetcher.data
+      : null;
+  const preview =
+    minifyFetcher.data?.ok && minifyFetcher.data.intent === "preview-minify"
+      ? minifyFetcher.data
+      : null;
+  const liquidPreview =
+    liquidFetcher.data?.ok && liquidFetcher.data.intent === "preview-liquid"
+      ? liquidFetcher.data
+      : null;
+  const actionErrors = fetchers
+    .map((fetcher) => fetcher.data)
+    .flatMap((result) => (result && !result.ok ? [result.error] : []));
+  const changeResult = [
+    liquidFetcher.data,
+    minifyFetcher.data,
+    historyFetcher.data,
+  ].find(
+    (
+      result,
+    ): result is Extract<
+      OptimizerActionResult,
+      { ok: true; intent: "change" }
+    > => result?.ok === true && result.intent === "change",
+  );
+  const scan = data.latestScan;
+  const fieldMetrics = scan?.fieldData;
 
   return (
-    <s-page heading="Theme optimization">
+    <s-page heading="Storefront optimization">
       <main className="pp-scanPage">
-        <section className="pp-scanPanel">
-          <p className="pp-eyebrow">CSS and JavaScript · read-only preview</p>
-          <h1>Inspect and minify a theme asset</h1>
+        <section className="pp-scanPanel pp-optimizeHero">
+          <p className="pp-eyebrow">Measured fixes · draft-theme safe</p>
+          <h1>Turn real speed findings into reviewed theme changes.</h1>
           <p>
-            Select a theme, list its static CSS/JavaScript assets, then generate
-            a real minified preview. This first workflow never writes to a theme
-            or changes the live storefront.
+            See the latest Core Web Vitals data, preview CSS/JavaScript
+            minification, defer compatible theme scripts, and tune Shopify image
+            loading. Every change is opt-in, checksum-protected, and limited to
+            an unpublished or development theme.
+          </p>
+          <div className="pp-optimizeActions">
+            <a className="pp-scanButtonLink" href="/app/scan">
+              Run a fresh audit
+            </a>
+            <a
+              className="pp-scanButtonLink pp-optimizeSecondaryLink"
+              href="#theme-picker"
+            >
+              Open optimization tools
+            </a>
+          </div>
+        </section>
+
+        <section className="pp-scanPanel" aria-labelledby="core-vitals-heading">
+          <div className="pp-scanPanelHeader">
+            <div>
+              <p className="pp-eyebrow">Your latest storefront measurement</p>
+              <h2 id="core-vitals-heading">Core Web Vitals action center</h2>
+              <p>
+                {scan
+                  ? `${scan.strategy} PageSpeed run · ${new Date(scan.createdAt).toLocaleString()} · ${scan.pageUrl}`
+                  : "No completed audit is available yet. Run a PageSpeed audit to load measured results."}
+              </p>
+            </div>
+            <a className="pp-secondaryButton" href="/app/scan">
+              View Speed Audit
+            </a>
+          </div>
+          <div className="pp-vitalsGrid">
+            <article className="pp-vitalCard">
+              <span>Largest Contentful Paint · LCP</span>
+              <strong>
+                {fieldMetrics?.lcpP75Ms !== undefined
+                  ? milliseconds(fieldMetrics.lcpP75Ms)
+                  : scan?.lcpMs !== null && scan?.lcpMs !== undefined
+                    ? milliseconds(scan.lcpMs)
+                    : "Not measured"}
+              </strong>
+              <small>
+                {fieldMetrics?.lcpP75Ms !== undefined
+                  ? `Real-user ${scan?.fieldDataSource?.toLowerCase() ?? "CrUX"} p75 · ${fieldStatus(fieldMetrics.lcpCategory)}`
+                  : scan?.lcpMs !== null && scan?.lcpMs !== undefined
+                    ? "Synthetic lab result · not field Core Web Vitals"
+                    : "Run a storefront audit first"}
+              </small>
+            </article>
+            <article className="pp-vitalCard">
+              <span>Interaction to Next Paint · INP</span>
+              <strong>{milliseconds(fieldMetrics?.inpP75Ms)}</strong>
+              <small>
+                {fieldMetrics?.inpP75Ms !== undefined
+                  ? `Real-user ${scan?.fieldDataSource?.toLowerCase() ?? "CrUX"} p75 · ${fieldStatus(fieldMetrics.inpCategory)}`
+                  : "Google returned no field INP. TBT is a separate lab diagnostic, not INP."}
+              </small>
+            </article>
+            <article className="pp-vitalCard">
+              <span>Cumulative Layout Shift · CLS</span>
+              <strong>
+                {fieldMetrics?.clsP75 !== undefined
+                  ? fieldMetrics.clsP75.toFixed(3)
+                  : scan?.cls !== null && scan?.cls !== undefined
+                    ? scan.cls.toFixed(3)
+                    : "Not measured"}
+              </strong>
+              <small>
+                {fieldMetrics?.clsP75 !== undefined
+                  ? `Real-user ${scan?.fieldDataSource?.toLowerCase() ?? "CrUX"} p75 · ${fieldStatus(fieldMetrics.clsCategory)}`
+                  : scan?.cls !== null && scan?.cls !== undefined
+                    ? "Synthetic lab result · field CLS is not available"
+                    : "Run a storefront audit first"}
+              </small>
+            </article>
+            <article className="pp-vitalCard pp-vitalDiagnostic">
+              <span>Total Blocking Time · lab diagnostic</span>
+              <strong>
+                {scan?.tbtMs === null || scan?.tbtMs === undefined
+                  ? "Not measured"
+                  : `${scan.tbtMs} ms`}
+              </strong>
+              <small>
+                Use this to investigate JavaScript work; it is not a substitute
+                for field INP.
+              </small>
+            </article>
+          </div>
+          <p className="pp-scanFootnote">
+            These measurements do not automatically change your theme. A metric
+            improves only after a reviewed change is applied and the same page
+            is tested again; PageSpeed variation is not proof of causation.
           </p>
         </section>
 
@@ -799,25 +1257,32 @@ export default function ThemeOptimizationPage() {
           </aside>
         ) : (
           <>
-            {actionData && !actionData.ok ? (
+            {actionErrors.length > 0 ? (
               <aside className="pp-scanNotice" role="alert">
-                {actionData.error}
+                {Array.from(new Set(actionErrors)).map((message) => (
+                  <p key={message}>{message}</p>
+                ))}
               </aside>
-            ) : actionData?.ok && actionData.intent === "change" ? (
+            ) : changeResult ? (
               <aside className="pp-scanNotice" role="status">
-                {actionData.notice} <strong>Status: {actionData.status}</strong>
+                {changeResult.notice}{" "}
+                <strong>Status: {changeResult.status}</strong>
               </aside>
             ) : null}
 
             <section
               className="pp-scanPanel"
+              id="theme-picker"
               aria-labelledby="asset-picker-title"
             >
-              <h2 id="asset-picker-title">1. Choose a theme asset</h2>
+              <h2 id="asset-picker-title">1. Choose a theme to inspect</h2>
               {data.themes.length === 0 ? (
                 <p>No themes were returned for this Shopify store.</p>
               ) : (
-                <Form method="post" className="pp-optimizeForm">
+                <inventoryFetcher.Form
+                  method="post"
+                  className="pp-optimizeForm"
+                >
                   <label>
                     Theme
                     <select name="themeId" required defaultValue="">
@@ -837,18 +1302,51 @@ export default function ThemeOptimizationPage() {
                     value="list-assets"
                     disabled={busy}
                   >
-                    {busy &&
-                    navigation.formData?.get("intent") === "list-assets"
-                      ? "Reading theme assets…"
-                      : "List CSS and JavaScript assets"}
+                    {inventoryFetcher.state !== "idle"
+                      ? "Reading theme files…"
+                      : "Load CSS/JS and image tools"}
                   </button>
-                </Form>
+                </inventoryFetcher.Form>
               )}
+              {data.themes.length > 0 ? (
+                <liquidFetcher.Form method="post" className="pp-optimizeForm">
+                  <label>
+                    Theme for compatible JavaScript deferral
+                    <select name="themeId" required defaultValue="">
+                      <option value="" disabled>
+                        Select a theme
+                      </option>
+                      {data.themes.map((theme) => (
+                        <option key={theme.id} value={theme.id}>
+                          {theme.name} · {theme.role.toLowerCase()}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <input type="hidden" name="mode" value="defer-js" />
+                  <input
+                    type="hidden"
+                    name="filename"
+                    value="layout/theme.liquid"
+                  />
+                  <button
+                    className="pp-secondaryButton"
+                    name="intent"
+                    value="preview-liquid"
+                    disabled={busy}
+                  >
+                    {liquidFetcher.state !== "idle" &&
+                    liquidFetcher.formData?.get("mode") === "defer-js"
+                      ? "Inspecting JavaScript…"
+                      : "Preview compatible JS deferral"}
+                  </button>
+                </liquidFetcher.Form>
+              ) : null}
             </section>
 
             {listed ? (
               <section className="pp-scanPanel">
-                <h2>2. Select a static stylesheet or script</h2>
+                <h2>2. Minify a CSS or JavaScript asset</h2>
                 <p>{listed.notice}</p>
                 {listed.truncated ? (
                   <p role="status">
@@ -859,7 +1357,7 @@ export default function ThemeOptimizationPage() {
                 {listed.assets.length === 0 ? (
                   <p>No static CSS, JS, or MJS assets were found.</p>
                 ) : (
-                  <Form method="post" className="pp-optimizeForm">
+                  <minifyFetcher.Form method="post" className="pp-optimizeForm">
                     <input
                       type="hidden"
                       name="themeId"
@@ -884,13 +1382,188 @@ export default function ThemeOptimizationPage() {
                       value="preview-minify"
                       disabled={busy}
                     >
-                      {busy &&
-                      navigation.formData?.get("intent") === "preview-minify"
+                      {minifyFetcher.state !== "idle"
                         ? "Generating preview…"
                         : "Generate minified preview"}
                     </button>
-                  </Form>
+                  </minifyFetcher.Form>
                 )}
+              </section>
+            ) : null}
+
+            {listed ? (
+              <section
+                className="pp-scanPanel"
+                id="optimizer-tools"
+                aria-labelledby="image-tools-title"
+              >
+                <p className="pp-eyebrow">Image loading · LCP</p>
+                <h2 id="image-tools-title">Review Shopify image markup</h2>
+                <p>
+                  Choose a section or snippet to inspect Shopify{" "}
+                  <code>image_tag</code> expressions. The app can preview
+                  lazy-loading changes for images you confirm are below the
+                  fold, or add high priority to one exact LCP/hero image. Raw{" "}
+                  <code>&lt;img&gt;</code> tags and dynamic Liquid are not
+                  rewritten.
+                </p>
+                {listed.liquidFiles.length ? (
+                  <imageInspectionFetcher.Form
+                    method="post"
+                    className="pp-optimizeForm"
+                  >
+                    <input
+                      type="hidden"
+                      name="themeId"
+                      value={listed.theme.id}
+                    />
+                    <label>
+                      Section or snippet
+                      <select
+                        name="filename"
+                        required
+                        defaultValue={inspection?.filename ?? ""}
+                      >
+                        <option value="" disabled>
+                          Select a Liquid file
+                        </option>
+                        {listed.liquidFiles.map((file) => (
+                          <option key={file.filename} value={file.filename}>
+                            {file.filename} · {bytes(file.size)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      className="pp-secondaryButton"
+                      name="intent"
+                      value="inspect-liquid"
+                      disabled={busy}
+                    >
+                      {imageInspectionFetcher.state !== "idle"
+                        ? "Inspecting image markup…"
+                        : "Inspect image_tag expressions"}
+                    </button>
+                  </imageInspectionFetcher.Form>
+                ) : (
+                  <p>
+                    No section/snippet Liquid files were returned. Confirm
+                    Shopify granted <code>read_themes</code> and reload the
+                    inventory.
+                  </p>
+                )}
+
+                {inspection ? (
+                  <div className="pp-imageInspection">
+                    <h3>{inspection.filename}</h3>
+                    <p>{inspection.notice}</p>
+                    {inspection.images.length ? (
+                      <>
+                        <ol className="pp-imageCandidates">
+                          {inspection.images.map((image) => (
+                            <li key={`${inspection.filename}-${image.index}`}>
+                              <div>
+                                <strong>
+                                  Image tag {image.index + 1} · line{" "}
+                                  {image.line}
+                                </strong>
+                                <pre>{image.expression}</pre>
+                                <small>
+                                  Current loading:{" "}
+                                  {image.loading ??
+                                    (image.loadingConfigured
+                                      ? "dynamic/unknown"
+                                      : "not explicit")}{" "}
+                                  · fetch priority:{" "}
+                                  {image.fetchpriority ??
+                                    (image.fetchpriorityConfigured
+                                      ? "dynamic/unknown"
+                                      : "not explicit")}
+                                </small>
+                              </div>
+                              <liquidFetcher.Form method="post">
+                                <input
+                                  type="hidden"
+                                  name="themeId"
+                                  value={inspection.theme.id}
+                                />
+                                <input
+                                  type="hidden"
+                                  name="filename"
+                                  value={inspection.filename}
+                                />
+                                <input
+                                  type="hidden"
+                                  name="mode"
+                                  value="prioritize-lcp"
+                                />
+                                <input
+                                  type="hidden"
+                                  name="imageIndex"
+                                  value={image.index}
+                                />
+                                <button
+                                  className="pp-secondaryButton"
+                                  name="intent"
+                                  value="preview-liquid"
+                                  disabled={busy}
+                                >
+                                  Preview as LCP image
+                                </button>
+                              </liquidFetcher.Form>
+                            </li>
+                          ))}
+                        </ol>
+                        <liquidFetcher.Form
+                          method="post"
+                          className="pp-applyForm pp-imageLazyForm"
+                        >
+                          <input
+                            type="hidden"
+                            name="intent"
+                            value="preview-liquid"
+                          />
+                          <input
+                            type="hidden"
+                            name="themeId"
+                            value={inspection.theme.id}
+                          />
+                          <input
+                            type="hidden"
+                            name="filename"
+                            value={inspection.filename}
+                          />
+                          <input
+                            type="hidden"
+                            name="mode"
+                            value="lazy-images"
+                          />
+                          <p>
+                            Lazy-load mode changes eligible Shopify image_tag
+                            calls in this file only. Use it only when every
+                            affected image is below the fold; do not use it on a
+                            hero, first product image, or any LCP candidate.
+                          </p>
+                          <button
+                            className="pp-secondaryButton"
+                            disabled={busy}
+                          >
+                            {liquidFetcher.state !== "idle" &&
+                            liquidFetcher.formData?.get("mode") ===
+                              "lazy-images"
+                              ? "Generating image preview…"
+                              : "Preview below-the-fold lazy loading"}
+                          </button>
+                        </liquidFetcher.Form>
+                      </>
+                    ) : (
+                      <p>
+                        No supported Shopify <code>image_tag</code> expressions
+                        were found in this file.
+                      </p>
+                    )}
+                  </div>
+                ) : null}
               </section>
             ) : null}
 
@@ -938,7 +1611,7 @@ export default function ThemeOptimizationPage() {
                 </details>
                 {preview.smallerThanSource &&
                 ["UNPUBLISHED", "DEVELOPMENT"].includes(preview.theme.role) ? (
-                  <Form method="post" className="pp-applyForm">
+                  <minifyFetcher.Form method="post" className="pp-applyForm">
                     <input type="hidden" name="intent" value="apply-minify" />
                     <input
                       type="hidden"
@@ -967,12 +1640,11 @@ export default function ThemeOptimizationPage() {
                       original file will be saved for conflict-checked rollback.
                     </label>
                     <button className="pp-scanButton" disabled={busy}>
-                      {busy &&
-                      navigation.formData?.get("intent") === "apply-minify"
+                      {minifyFetcher.state !== "idle"
                         ? "Submitting to Shopify…"
                         : "Apply to this draft theme"}
                     </button>
-                  </Form>
+                  </minifyFetcher.Form>
                 ) : preview.smallerThanSource ? (
                   <aside className="pp-scanNotice" role="note">
                     Writes are allowed only to unpublished/development themes.
@@ -987,14 +1659,133 @@ export default function ThemeOptimizationPage() {
               </section>
             ) : null}
 
+            {liquidPreview ? (
+              <section
+                className="pp-scanPanel"
+                aria-label="Reviewed Liquid optimization preview"
+              >
+                <div className="pp-scanPanelHeader">
+                  <div>
+                    <p className="pp-eyebrow">No Shopify file changed yet</p>
+                    <h2>
+                      {liquidPreview.mode === "defer-js"
+                        ? "Defer compatible theme JavaScript"
+                        : liquidPreview.mode === "lazy-images"
+                          ? "Lazy-load selected below-the-fold images"
+                          : "Prioritize the selected LCP image"}
+                    </h2>
+                    <p>
+                      {liquidPreview.theme.name} · {liquidPreview.filename} ·{" "}
+                      {liquidPreview.theme.role.toLowerCase()}
+                    </p>
+                  </div>
+                </div>
+                <div className="pp-scanMetrics">
+                  <article>
+                    <span>Original file</span>
+                    <strong>{bytes(liquidPreview.sourceBytes)}</strong>
+                    <p>UTF-8 source bytes</p>
+                  </article>
+                  <article>
+                    <span>Reviewed preview</span>
+                    <strong>{bytes(liquidPreview.outputBytes)}</strong>
+                    <p>UTF-8 source bytes after edit</p>
+                  </article>
+                  <article>
+                    <span>Changed expressions</span>
+                    <strong>{liquidPreview.changedCount}</strong>
+                    <p>
+                      {liquidPreview.skippedCount} selected expression(s) left
+                      untouched
+                    </p>
+                  </article>
+                </div>
+                <p className="pp-scanFootnote">{liquidPreview.notice}</p>
+                <aside className="pp-scanNotice" role="note">
+                  {liquidPreview.mode === "defer-js"
+                    ? "This adds defer to compatible first-party theme asset scripts. It does not delay execution until user interaction, and it skips app, remote, inline, async, module, and dynamic scripts. Test cart, menus, search, consent, analytics, and app blocks before publishing."
+                    : liquidPreview.mode === "lazy-images"
+                      ? "This is only for a section/snippet whose affected images are all below the fold. Never lazy-load the hero, first product image, or identified LCP image. Shopify may already lazy-load lower sections; verify the rendered output and retest. Raw img markup is not changed."
+                      : "Only the selected image_tag expression is changed. Confirm it is the actual LCP image on the tested page; high priority on multiple images can compete and make performance worse."}
+                </aside>
+                <details className="pp-codePreview">
+                  <summary>Review the complete changed Liquid file</summary>
+                  <pre>
+                    <code>{liquidPreview.optimizedCode}</code>
+                  </pre>
+                </details>
+                {["UNPUBLISHED", "DEVELOPMENT"].includes(
+                  liquidPreview.theme.role,
+                ) ? (
+                  <liquidFetcher.Form method="post" className="pp-applyForm">
+                    <input type="hidden" name="intent" value="apply-liquid" />
+                    <input
+                      type="hidden"
+                      name="themeId"
+                      value={liquidPreview.theme.id}
+                    />
+                    <input
+                      type="hidden"
+                      name="filename"
+                      value={liquidPreview.filename}
+                    />
+                    <input
+                      type="hidden"
+                      name="mode"
+                      value={liquidPreview.mode}
+                    />
+                    {liquidPreview.imageIndex !== null ? (
+                      <input
+                        type="hidden"
+                        name="imageIndex"
+                        value={liquidPreview.imageIndex}
+                      />
+                    ) : null}
+                    <input
+                      type="hidden"
+                      name="sourceHash"
+                      value={liquidPreview.sourceHash}
+                    />
+                    <label>
+                      <input
+                        type="checkbox"
+                        name="confirmApply"
+                        value="yes"
+                        required
+                      />
+                      {liquidPreview.mode === "lazy-images"
+                        ? "I confirmed every affected image in this selected file is below the fold and none is the hero/LCP image."
+                        : liquidPreview.mode === "prioritize-lcp"
+                          ? "I confirmed this exact image is the page's primary LCP/hero image and reviewed the generated Liquid."
+                          : "I reviewed the exact script changes and will test core shopping flows on this unpublished/development theme."}{" "}
+                      The original file will be saved for conflict-checked
+                      rollback.
+                    </label>
+                    <button className="pp-scanButton" disabled={busy}>
+                      {liquidFetcher.state !== "idle" &&
+                      liquidFetcher.formData?.get("intent") === "apply-liquid"
+                        ? "Submitting reviewed change…"
+                        : "Apply reviewed change to this draft theme"}
+                    </button>
+                  </liquidFetcher.Form>
+                ) : (
+                  <aside className="pp-scanNotice" role="note">
+                    This is a read-only preview. Applying is available only on
+                    an unpublished/development theme; the published theme will
+                    not be modified.
+                  </aside>
+                )}
+              </section>
+            ) : null}
+
             <section className="pp-scanPanel" aria-label="Optimization history">
-              <h2>Draft asset changes and rollback</h2>
+              <h2>Draft theme changes and rollback</h2>
               <p>
                 Only changes made by this app are listed. Rollback verifies the
-                current asset checksum first and refuses to overwrite newer
+                current file checksum first and refuses to overwrite newer
                 merchant edits. Shopify theme writes require the approved app
                 permission and are limited here to unpublished/development
-                themes.
+                themes; the app never publishes the theme.
               </p>
               {data.changes.length === 0 ? (
                 <p>No theme asset changes have been made by this app.</p>
@@ -1019,7 +1810,7 @@ export default function ThemeOptimizationPage() {
                       {["PREPARED", "SUBMITTED", "ROLLBACK_SUBMITTED"].includes(
                         change.status,
                       ) ? (
-                        <Form method="post">
+                        <historyFetcher.Form method="post">
                           <input
                             type="hidden"
                             name="themeId"
@@ -1038,9 +1829,12 @@ export default function ThemeOptimizationPage() {
                           >
                             Recheck Shopify status
                           </button>
-                        </Form>
+                        </historyFetcher.Form>
                       ) : change.status === "APPLIED" ? (
-                        <Form method="post" className="pp-rollbackForm">
+                        <historyFetcher.Form
+                          method="post"
+                          className="pp-rollbackForm"
+                        >
                           <input
                             type="hidden"
                             name="themeId"
@@ -1068,7 +1862,7 @@ export default function ThemeOptimizationPage() {
                           >
                             Roll back this file
                           </button>
-                        </Form>
+                        </historyFetcher.Form>
                       ) : null}
                     </li>
                   ))}

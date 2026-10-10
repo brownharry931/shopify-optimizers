@@ -2,6 +2,16 @@
 
 Tasks are marked complete only after implementation and the phase's applicable verification. Shopify-hosted behavior remains pending until tested against the merchant's development store.
 
+## Current release blocker — Optimization UI is not in the screenshot build
+
+- [x] Source on this branch contains `/app/optimize` and a visible `Optimization` navigation link; the screenshot is from an older running build. `.env` API keys can change PageSpeed quota, but cannot add new app code or menus.
+- [x] The workbench source now includes real latest-scan LCP/INP/CLS/TBT display, CSS/JS minification preview, limited static-theme-script `defer`, selected Shopify `image_tag` lazy-loading/LCP hints, and guarded rollback paths. Local unit/lint/type/build verification is recorded below; Shopify behavior is not verified yet.
+- [ ] Pull this branch in Codespaces and restart Shopify CLI, then open `/app/optimize` in the existing dev-store app to verify the navigation and UI. This is not a Render production deployment.
+- [ ] Verify `read_themes`, theme inventory, active test-plan entitlement, and GraphQL reads in the existing development store. Applying still requires Shopify's public-app `write_themes` exemption and an unpublished/development theme.
+- [ ] Re-run the screenshot's failed PageSpeed audit after the provider rate limit clears; it is a separate Google quota issue.
+- [ ] Complete migration/development-store checks before production deployment or App Store submission.
+- [ ] Full image conversion/resizing, raw `<img>` rewriting, interaction-triggered JS delay, general CLS repair, font optimization, and durable monitored rollout are not implemented; do not show these as working controls or claim an automatic Core Web Vitals fix.
+
 ## Phase 1 — Audit
 
 - [x] Inspect the repository, Git state, package/config files, Shopify setup, app code, persistence, and tests.
@@ -26,7 +36,7 @@ Tasks are marked complete only after implementation and the phase's applicable v
 - [x] Add a reproducible npm lockfile, a local PostgreSQL migration, and a GitHub Actions verification workflow.
 - [x] Add a Codespaces dev container with private PostgreSQL for browser-based development.
 - [x] Add the missing default locale file required by Shopify CLI's Theme App Extension scanner after the first Codespaces run reported `ENOENT`.
-- [x] `npm test` (15 tests), `npm run typecheck`, `npm run lint`, and `npm run build` pass in the sandbox.
+- [x] Latest local verification: `npm test` (28 tests), `npm run typecheck`, `npm run lint`, and `npm run build` pass in the sandbox.
 - [ ] Revalidate Prisma schema/migrations on a machine with the Prisma engine. `npm audit --omit=dev` is clean; full `npm audit` currently reports 4 moderate findings in the development-only Shopify CLI dependency chain and needs review.
 - [x] Re-run `shopify app dev` in Codespaces and confirm the missing-locale Theme Check error is gone.
 - [x] Use the existing public SpeedBoost app identity (no duplicate app); the Codespaces-only `performance-pro` config alias was linked to SpeedBoost. Keep that per-environment manifest and temporary URL out of Git.
@@ -67,13 +77,15 @@ Tasks are marked complete only after implementation and the phase's applicable v
 - [x] Add standalone JavaScript minification with `esbuild`, retained legal comments, an 8 MB input bound, and no code execution/bundling.
 - [x] Add unit tests proving measured output size and sample JavaScript behavior.
 - [x] Add paid-gated theme inventory and static CSS/JS minification preview with raw byte counts and a 1 MB interactive-preview limit; applying is a separate explicit confirmation.
-- [ ] Verify `read_themes` access and the theme-file GraphQL queries on an installed development store.
-- [x] Implement explicit CSS/JS apply only to an unpublished/development theme, persisting original bytes and SHA-256 hashes before Shopify writes; detect stale sources, verify async completion, and refuse rollback if the asset or theme has changed/published.
-- [x] Add unit tests for allowed theme roles, interrupted write recovery, pending/completed states, rollback confirmation, and merchant-edit conflict handling.
-- [ ] Validate the new migration and exercise read/write, async completion, conflict protection, and rollback on an installed development store after Shopify grants the public-app theme-write exemption.
-- [ ] Add merchant-controlled publish flow only after a safe theme copy/diff workflow and Shopify access are verified; the app currently never publishes a theme.
-- [ ] Build independently configurable, measured image/media/lazy-load/LCP/font modules with above-the-fold exclusions and a global emergency disable.
-- [ ] Add resource diagnostics, compatibility exclusions, conflict checks, and verified per-module rollback.
+- [x] Add a Core Web Vitals workbench based on the latest stored audit; show CrUX p75 LCP/INP/CLS only when returned, distinguish synthetic lab metrics, and never label TBT as INP.
+- [x] Add a narrow `defer` preview for explicit static theme-asset script tags in `layout/theme.liquid`; skips app/remote/inline/dynamic/async/module scripts and does not claim interaction-based delay.
+- [x] Add Liquid section/snippet inspection, below-the-fold-only `image_tag` lazy hints, and an exact single-image LCP eager/fetch-priority preview; dynamic options and raw `<img>` markup are left unchanged.
+- [x] Gate all new theme-file applies to unpublished/development roles, require review/confirmation, retain original contents and SHA-256 checks, and reuse conflict-checked rollback; never publish a theme.
+- [x] Add unit coverage for defer exclusions, Liquid comment handling, selective image loading hints, exact LCP selection, and dynamic-value safety.
+- [ ] Verify `read_themes` access, Liquid theme-file GraphQL queries, inventory/preview rendering, and active test-plan entitlement on the installed development store.
+- [ ] Validate the migration and exercise CSS/JS/Liquid read/write, async completion, conflict protection, and rollback after Shopify grants the public-app `write_themes` exemption.
+- [ ] Implement image-file conversion/resizing/responsive CDN rewriting, raw `<img>` handling, fonts, arbitrary CLS fixes, and true delay-until-interaction only with theme-specific compatibility analysis and safe previews; these are not available controls now.
+- [ ] Add resource diagnostics, compatibility exclusions, monitored LCP/image changes, durable jobs, and verified per-module rollback beyond the current file-level history.
 
 ## Phase 7 — Monitoring and history (in progress)
 

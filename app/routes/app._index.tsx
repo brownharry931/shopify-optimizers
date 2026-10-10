@@ -145,7 +145,7 @@ export default function Dashboard() {
                 Performance reports
               </a>
               <a className={styles.secondaryAction} href="/app/optimize">
-                Preview theme CSS/JS minification
+                Open Optimization Center
               </a>
               <a className={styles.secondaryAction} href="/app/billing">
                 {data.hasActiveSubscription
@@ -238,9 +238,10 @@ export default function Dashboard() {
               Product readiness
             </h2>
             <p className={styles.panelDescription}>
-              Activation is confirmed from real storefront visits, and scans use
-              Google PageSpeed. Automated theme modifications are not yet
-              enabled.
+              SpeedBoost now offers measured Core Web Vitals guidance plus
+              reviewed CSS/JS, compatible script-deferral, and Shopify image
+              loading previews. Applying still requires Shopify&apos;s separate
+              public-app theme-write exemption and a development-theme test.
             </p>
             <ul className={styles.statusList}>
               <li className={styles.statusItem}>
