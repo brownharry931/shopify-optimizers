@@ -1,13 +1,142 @@
 {% comment %}
-  Lightweight app-embed heartbeat. This confirms the extension is active on a
-  published storefront without changing merchant theme files or blocking render.
+  SpeedBoost storefront runtime.
+  Settings come from the app-data metafield written by the SpeedBoost admin
+  (Speed boosters page). Every feature is opt-in; with no settings saved this
+  embed only sends the verification heartbeat. Disabling the embed in the theme
+  editor removes every behaviour below immediately — no theme files are edited.
 {% endcomment %}
+{%- assign sb = app.metafields.speedboost.settings.value -%}
+{%- unless request.design_mode -%}
+{%- if sb -%}
+  {%- if sb.fontOptimization -%}
+    <link rel="preconnect" href="https://fonts.shopifycdn.com" crossorigin>
+    {%- if settings.type_body_font -%}
+      {%- assign sb_body_font = settings.type_body_font | font_url -%}
+      {%- if sb_body_font != blank -%}<link rel="preload" as="font" type="font/woff2" href="{{ sb_body_font }}" crossorigin>{%- endif -%}
+    {%- endif -%}
+    {%- if settings.type_header_font -%}
+      {%- assign sb_heading_font = settings.type_header_font | font_url -%}
+      {%- if sb_heading_font != blank and sb_heading_font != sb_body_font -%}<link rel="preload" as="font" type="font/woff2" href="{{ sb_heading_font }}" crossorigin>{%- endif -%}
+    {%- endif -%}
+  {%- endif -%}
+
+  {%- if sb.preloadLcp and template.name == 'product' and product -%}
+    {%- assign sb_media = product.selected_or_first_available_variant.featured_media | default: product.featured_media -%}
+    {%- if sb_media and sb_media.preview_image -%}
+      {%- assign sb_img = sb_media.preview_image -%}
+      <link rel="preload" as="image" fetchpriority="high"
+        href="{{ sb_img | image_url: width: 1100 }}"
+        imagesrcset="{% for w in (1..6) %}{% case w %}{% when 1 %}{% assign sbw = 360 %}{% when 2 %}{% assign sbw = 533 %}{% when 3 %}{% assign sbw = 720 %}{% when 4 %}{% assign sbw = 940 %}{% when 5 %}{% assign sbw = 1066 %}{% else %}{% assign sbw = 1500 %}{% endcase %}{% if sb_img.width >= sbw %}{{ sb_img | image_url: width: sbw }} {{ sbw }}w,{% endif %}{% endfor %} {{ sb_img | image_url }} {{ sb_img.width }}w"
+        imagesizes="{{ sb.lcpImageSizes | escape }}">
+    {%- endif -%}
+  {%- endif -%}
+
+  {%- if sb.instantPage -%}
+    <script type="speculationrules">
+      {"prefetch":[{"source":"document","where":{"and":[{"href_matches":"/*"},{"not":{"href_matches":["/cart*","/checkout*","/checkouts/*","/account*","/apps/*","/*logout*","/*/cart*"]}},{"not":{"selector_matches":"[rel~=nofollow],[data-no-prefetch]"}}]},"eagerness":{% if sb.instantPageMode == 'viewport' %}"eager"{% else %}"moderate"{% endif %}}]}
+    </script>
+  {%- endif -%}
+
+  {%- if sb.pageStabilizer or sb.lazySections or sb.loadingBar -%}
+    <style>
+      {%- if sb.pageStabilizer -%}
+        html{scrollbar-gutter:stable}
+        .rte img[width][height],.product__description img[width][height]{height:auto;max-width:100%}
+        .rte iframe:not([height]),.product__description iframe:not([height]){aspect-ratio:16/9;width:100%;height:auto}
+      {%- endif -%}
+      {%- if sb.lazySections -%}
+        main .shopify-section:nth-of-type(n+4){content-visibility:auto;contain-intrinsic-size:auto 640px}
+      {%- endif -%}
+      {%- if sb.loadingBar -%}
+        #sb-loading-bar{position:fixed;top:0;left:0;height:3px;width:0;z-index:2147483647;background:{{ sb.loadingBarColor | default: '#2563eb' }};box-shadow:0 0 8px {{ sb.loadingBarColor | default: '#2563eb' }};opacity:0;transition:width .4s ease,opacity .25s ease;pointer-events:none}
+      {%- endif -%}
+    </style>
+  {%- endif -%}
+
+  {%- if sb.delayAppScripts or sb.delayTrackers or sb.passiveListeners or sb.lazyMedia -%}
+    <script id="sb-config" type="application/json">{{ sb | json }}</script>
+    {%- comment -%} Must run synchronously in <head> so it sees scripts before they execute. Kept tiny. {%- endcomment -%}
+    <script>
+      (function(){
+        var c;try{c=JSON.parse(document.getElementById('sb-config').textContent)}catch(e){return}
+        var w=window,d=document,released=false,queue=[],BLOCKED='javascript/blocked';
+        var delayList=(c.resolvedDelay||[]),neverList=(c.resolvedNever||[]);
+        function has(list,s){for(var i=0;i<list.length;i++){if(s.indexOf(list[i])!==-1)return true}return false}
+        function shouldDelay(src,dynamic){
+          if(released||!src)return false;var u;try{u=new URL(src,location.href)}catch(e){return false}
+          var s=u.href.toLowerCase();if(has(neverList,s))return false;
+          if(u.origin===location.origin&&u.pathname.indexOf('/cdn/shop/')===0)return false;
+          if((c.delayAppScripts||c.delayTrackers)&&has(delayList,s))return true;
+          return !!(c.delayAppScripts&&dynamic&&u.origin!==location.origin);
+        }
+        w.SpeedBoost={config:c,queue:queue,release:function(){}};
+        if(c.passiveListeners&&w.EventTarget){
+          var add=EventTarget.prototype.addEventListener,P={touchstart:1,touchmove:1,wheel:1,mousewheel:1};
+          EventTarget.prototype.addEventListener=function(t,f,o){
+            if(P[t]&&(o===undefined||typeof o==='boolean'))o={passive:true,capture:!!o};
+            return add.call(this,t,f,o)
+          };
+        }
+        if(c.delayAppScripts||c.delayTrackers){
+          var srcD=Object.getOwnPropertyDescriptor(HTMLScriptElement.prototype,'src');
+          var typeD=Object.getOwnPropertyDescriptor(HTMLScriptElement.prototype,'type');
+          var ce=d.createElement;
+          d.createElement=function(n){
+            var el=ce.apply(d,arguments);
+            if(String(n).toLowerCase()!=='script'||released)return el;
+            try{Object.defineProperties(el,{
+              src:{configurable:true,get:function(){return srcD.get.call(this)},set:function(v){if(shouldDelay(v,true)){this.setAttribute('data-sb-type',typeD.get.call(this)||'');typeD.set.call(this,BLOCKED)}srcD.set.call(this,v)}},
+              type:{configurable:true,get:function(){return typeD.get.call(this)},set:function(v){if(typeD.get.call(this)===BLOCKED&&!released)this.setAttribute('data-sb-type',v);else typeD.set.call(this,v)}}
+            })}catch(e){}
+            return el;
+          };
+          var mo=new MutationObserver(function(ms){
+            for(var i=0;i<ms.length;i++){var ns=ms[i].addedNodes;for(var j=0;j<ns.length;j++){var n=ns[j];
+              if(n.nodeType!==1||n.tagName!=='SCRIPT'||!n.src)continue;
+              if(n.type===BLOCKED||shouldDelay(n.src,false)){
+                if(n.type!==BLOCKED){n.setAttribute('data-sb-type',n.type||'');n.type=BLOCKED}
+                n.addEventListener('beforescriptexecute',function(e){if(this.type===BLOCKED)e.preventDefault()});
+                queue.push(n);if(n.parentNode)n.parentNode.removeChild(n);
+              }
+            }}
+          });
+          mo.observe(d.documentElement,{childList:true,subtree:true});
+          function release(){
+            if(released)return;released=true;mo.disconnect();
+            for(var i=0;i<ev.length;i++)w.removeEventListener(ev[i],release,{passive:true});
+            queue.forEach(function(old){
+              var s=ce.call(d,'script');
+              for(var k=0;k<old.attributes.length;k++){var a=old.attributes[k];if(a.name!=='type'&&a.name!=='data-sb-type')s.setAttribute(a.name,a.value)}
+              var t=old.getAttribute('data-sb-type');if(t)s.type=t;
+              if(!old.hasAttribute('async'))s.async=false;
+              d.head.appendChild(s);
+            });
+          }
+          w.SpeedBoost.release=release;
+          var ev=['keydown','mousedown','mousemove','touchstart','wheel','scroll','pointerdown'];
+          for(var i=0;i<ev.length;i++)w.addEventListener(ev[i],release,{passive:true,once:true});
+          if(c.delayTimeoutMs>0)w.addEventListener('load',function(){setTimeout(release,c.delayTimeoutMs)});
+        }
+        if(c.lazyMedia){
+          var VIDEO=/youtube(-nocookie)?\.com|youtu\.be|player\.vimeo\.com|fast\.wistia|loom\.com\/embed|tiktok\.com\/embed|instagram\.com|maps\.google|google\.com\/maps/i;
+          new MutationObserver(function(ms){
+            for(var i=0;i<ms.length;i++){var ns=ms[i].addedNodes;for(var j=0;j<ns.length;j++){var n=ns[j];if(n.nodeType!==1)continue;
+              if(n.tagName==='IFRAME'&&n.src&&VIDEO.test(n.src)&&!n.hasAttribute('data-sb-src')){n.setAttribute('data-sb-src',n.src);n.setAttribute('loading','lazy');n.src='about:blank'}
+              else if(n.tagName==='VIDEO'&&!n.autoplay&&n.getAttribute('preload')!=='none'){n.setAttribute('preload','none')}
+            }}
+          }).observe(d.documentElement,{childList:true,subtree:true});
+        }
+      })();
+    </script>
+  {%- endif -%}
+{%- endif -%}
 <script src="{{ 'embed.js' | asset_url }}" defer></script>
+{%- endunless -%}
 
 {% schema %}
 {
-  "name": "Performance Pro",
-  "target": "body",
+  "name": "SpeedBoost",
+  "target": "head",
   "settings": []
 }
 {% endschema %}

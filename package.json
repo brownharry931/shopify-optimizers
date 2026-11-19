@@ -17,7 +17,7 @@
     "prisma": "prisma",
     "vite": "vite",
     "typecheck": "react-router typegen && tsc --noEmit",
-    "test": "tsx --test app/performance/*.test.ts app/optimization/*.test.ts"
+    "test": "tsx --test app/performance/*.test.ts app/optimization/*.test.ts app/billing/*.test.ts"
   },
   "type": "module",
   "engines": {

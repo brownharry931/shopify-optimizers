@@ -1,46 +1,39 @@
-# Link this manifest to the existing public SpeedBoost app with `shopify app config link`.
-# Never put the API secret here.
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
 name = "SpeedBoost"
 handle = "speedboost-v2-1"
 application_url = "https://speedboost.onrender.com"
 embedded = true
+client_id = "95dba75f7cf5b176583299bbe8bfa6c2"
 
 [app_proxy]
 url = "/proxy"
 subpath = "speedboost"
 prefix = "apps"
 
-[build]
-automatically_update_urls_on_dev = true
-
 [access_scopes]
-# Least-privilege scopes for product media discovery and safe draft-theme workflows.
-# Shopify must separately grant the public-app write_themes exemption before theme-file writes work.
-scopes = "read_products,read_themes,write_themes"
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_files,write_files,write_metaobject_definitions,write_metaobjects,write_products,read_products,read_themes,write_themes,write_app_proxy"
+optional_scopes = [ ]
+use_legacy_install_flow = false
 
 [auth]
-redirect_urls = ["https://speedboost.onrender.com/auth/callback"]
+redirect_urls = [ "https://speedboost.onrender.com/auth/callback" ]
 
 [webhooks]
 api_version = "2026-10"
 
   [[webhooks.subscriptions]]
   uri = "/webhooks/app/uninstalled"
-  topics = ["app/uninstalled"]
+  topics = [ "app/uninstalled" ]
 
   [[webhooks.subscriptions]]
   uri = "/webhooks/app/scopes_update"
-  topics = ["app/scopes_update"]
-
-  # Mandatory privacy-law compliance webhooks for public apps.
-  [[webhooks.subscriptions]]
-  uri = "/webhooks/customers/data_request"
-  compliance_topics = ["customers/data_request"]
+  topics = [ "app/scopes_update" ]
 
   [[webhooks.subscriptions]]
-  uri = "/webhooks/customers/redact"
-  compliance_topics = ["customers/redact"]
+  uri = "/webhooks/compliance"
+  compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
 
-  [[webhooks.subscriptions]]
-  uri = "/webhooks/shop/redact"
-  compliance_topics = ["shop/redact"]
+[build]
+automatically_update_urls_on_dev = true

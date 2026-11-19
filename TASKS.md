@@ -36,8 +36,8 @@ Tasks are marked complete only after implementation and the phase's applicable v
 - [x] Add a reproducible npm lockfile, a local PostgreSQL migration, and a GitHub Actions verification workflow.
 - [x] Add a Codespaces dev container with private PostgreSQL for browser-based development.
 - [x] Add the missing default locale file required by Shopify CLI's Theme App Extension scanner after the first Codespaces run reported `ENOENT`.
-- [x] Latest local verification: `npm test` (28 tests), `npm run typecheck`, `npm run lint`, and `npm run build` pass in the sandbox.
-- [ ] Revalidate Prisma schema/migrations on a machine with the Prisma engine. `npm audit --omit=dev` is clean; full `npm audit` currently reports 4 moderate findings in the development-only Shopify CLI dependency chain and needs review.
+- [x] Latest local verification: `npm test` (31 tests), `npm run typecheck`, `npm run lint`, `npm run build`, and `npx prisma validate` pass in the sandbox; local Codespaces migrations are applied.
+- [ ] Full `npm audit` currently reports production/development dependency findings, including Vite, body-parser, qs, zod, and minimatch-chain issues; safe compatible fixes need review. Do not downgrade the supported Shopify CLI or React/Vite stack blindly.
 - [x] Re-run `shopify app dev` in Codespaces and confirm the missing-locale Theme Check error is gone.
 - [x] Use the existing public SpeedBoost app identity (no duplicate app); the Codespaces-only `performance-pro` config alias was linked to SpeedBoost. Keep that per-environment manifest and temporary URL out of Git.
 - [x] Codespaces dev log confirmed the forwarded HTTPS app URL; manifest and server now request only `read_products`, `read_themes`, and `write_themes` for the planned optimization workflows. The scopes have not yet been re-approved on the dev store.
@@ -57,12 +57,12 @@ Tasks are marked complete only after implementation and the phase's applicable v
 - [ ] Configure the Partner API client and private deployment variables; do not commit tokens.
 - [ ] Apply the new migration and verify the hosted selection/return/active-state/manage flow on a development store.
 - [x] Enforce live Partner API subscription verification before starting the mobile scan.
-- [ ] Centralize entitlement checks for future optimization, monitoring, and reporting features.
+- [x] Centralize App Pricing entitlement validation for the public USD $10/30-day offer and private development test amount; production rejects malformed, expired, unsupported, or wrong-currency subscriptions.
 
 ## Phase 5 — Scanner (path/device audit v1; live verification pending)
 
 - [x] Run Google PageSpeed Insights Lighthouse for mobile, desktop, or both strategies against a Shopify-reported primary-domain path; server-check the active subscription.
-- [x] Allowlist same-store homepage, product, collection, page, and blog article path shapes; reject arbitrary hosts, query strings, fragments, and encoded paths.
+- [x] Allowlist same-store homepage, product, collection, page, and blog article path shapes; reject arbitrary hosts, IP/internal origins, query strings, fragments, and encoded paths.
 - [x] Persist `AuditRun` groups and per-device `PerformanceScan` rows; keep synthetic lab and field INP claims distinct.
 - [x] Add atomic per-shop audit quota, provider timeout/error handling, and 90-day pruning on subsequent audits.
 - [x] Add automated unit tests for target paths, origin shape and strategy selection.

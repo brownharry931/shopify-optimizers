@@ -24,7 +24,7 @@ const guidanceByAuditId: Record<string, FindingGuidance> = {
     nextStep:
       "Identify the script owner and test all storefront interactions before changing it. One Lighthouse page load cannot establish that code is unused on every page or state.",
     automation:
-      "The app does not remove scripts or delay them until interaction. The Optimization Center can preview `defer` for compatible static theme-asset scripts only; app, remote, inline, module, and dynamic scripts are excluded.",
+      "Speed boosters → Optimize Shopify apps and Defer tracking & chat hold third-party scripts until the first interaction. The Theme optimizer can add `defer` to compatible static theme scripts on a draft theme.",
   },
   "uses-optimized-images": {
     area: "Images",
@@ -59,13 +59,14 @@ const guidanceByAuditId: Record<string, FindingGuidance> = {
     nextStep:
       "Check whether the LCP image is discoverable in the initial document and whether lazy loading or script insertion delays it.",
     automation:
-      "The Optimization Center can preview eager loading and high fetch priority for one exact Shopify `image_tag` expression after you identify the real LCP element. It does not preload or modify files automatically.",
+      "On product pages, Speed boosters → Preload LCP image fetches the featured image from the <head> at high priority. Elsewhere, the Theme optimizer can set eager loading and high fetch priority on the exact Shopify `image_tag` you identify.",
   },
   "font-display": {
     area: "Fonts",
     nextStep:
       "Check font format, weights, cross-origin behavior, and layout impact before changing font-display or adding preload hints.",
-    automation: "Font optimization is not yet implemented.",
+    automation:
+      "Speed boosters → Optimize fonts preconnects to Shopify's font CDN and preloads the theme's body and heading fonts. It cannot change a theme's own font-display value.",
   },
   "uses-text-compression": {
     area: "Hosting and delivery",
@@ -81,9 +82,69 @@ const guidanceByAuditId: Record<string, FindingGuidance> = {
   },
 };
 
+// Lighthouse 12 "insight" audits replace several legacy audit ids.
+const insightAliases: Record<string, string> = {
+  "render-blocking-insight": "render-blocking-resources",
+  "image-delivery-insight": "uses-optimized-images",
+  "lcp-discovery-insight": "lcp-discovery",
+  "lcp-phases-insight": "largest-contentful-paint-element",
+  "font-display-insight": "font-display",
+  "cache-insight": "uses-long-cache-ttl",
+  "document-latency-insight": "uses-text-compression",
+  "legacy-javascript-insight": "unused-javascript",
+  "duplicated-javascript-insight": "unused-javascript",
+  "legacy-javascript": "unused-javascript",
+  "bootup-time": "unused-javascript",
+  "mainthread-work-breakdown": "unused-javascript",
+  "offscreen-images": "uses-optimized-images",
+  "unminified-css": "unused-css-rules",
+};
+
+const extraGuidance: Record<string, FindingGuidance> = {
+  "third-parties-insight": {
+    area: "Third-party code",
+    nextStep:
+      "Identify which apps and tags in the table are not needed for the first paint. Most analytics, chat and pop-up scripts can wait until the visitor interacts.",
+    automation:
+      "Turn on Speed boosters → Optimize Shopify apps and Defer tracking & chat. Use Advanced options to add or exclude specific script URLs.",
+  },
+  "third-party-summary": {
+    area: "Third-party code",
+    nextStep:
+      "Identify which apps and tags in the table are not needed for the first paint. Most analytics, chat and pop-up scripts can wait until the visitor interacts.",
+    automation:
+      "Turn on Speed boosters → Optimize Shopify apps and Defer tracking & chat. Use Advanced options to add or exclude specific script URLs.",
+  },
+  "cls-culprits-insight": {
+    area: "Layout stability",
+    nextStep:
+      "Give images, embeds and app widgets explicit dimensions or reserved space, and avoid injecting banners above existing content after load.",
+    automation:
+      "Speed boosters → Page stabilizer reserves space for images and embeds in rich-text content. Optimize fonts reduces late font swaps.",
+  },
+  "unminified-javascript": {
+    area: "JavaScript",
+    nextStep: "Minify the listed theme scripts. App-hosted files must be fixed by the app vendor.",
+    automation: "The Theme optimizer minifies theme .js assets on a draft theme with checksum-protected rollback.",
+  },
+  "network-dependency-tree-insight": {
+    area: "Request chains",
+    nextStep:
+      "Shorten chains of critical requests: preconnect to required origins and avoid loading CSS or fonts through other CSS files.",
+    automation: "Speed boosters → Optimize fonts preconnects to Shopify's font CDN. Other chains need theme changes.",
+  },
+  "dom-size-insight": {
+    area: "DOM size",
+    nextStep:
+      "Reduce the number of elements on the page, for example long mega-menus, hidden product variants or very large collections rendered at once.",
+    automation: "Speed boosters → Defer offscreen section rendering can reduce rendering cost; the DOM itself needs theme changes.",
+  },
+};
+
 export function guidanceForFinding(id: string): FindingGuidance {
   return (
-    guidanceByAuditId[id] ?? {
+    extraGuidance[id] ??
+    guidanceByAuditId[insightAliases[id] ?? id] ?? {
       area: "Storefront diagnostic",
       nextStep:
         "Review the provider's finding and affected resource details. Validate any change on mobile and desktop before publishing.",

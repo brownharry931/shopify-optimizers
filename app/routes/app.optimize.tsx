@@ -21,6 +21,17 @@ import {
   type LiquidImageTagCandidate,
   type ThemeLiquidOptimizationMode,
 } from "../optimization/liquid-transform.server";
+import { parseStrictInteger } from "../optimization/form-validation";
+import { readStoredReport } from "../performance/lighthouse-report";
+import { Icon } from "../components/icons";
+import {
+  Card,
+  GaugeLegend,
+  PageHeader,
+  RatingShape,
+  ScoreGauge,
+  Time,
+} from "../components/ui";
 
 type ThemeSummary = { id: string; name: string; role: string };
 type ThemeAsset = {
@@ -667,6 +678,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       where: { shop: session.shop, status: "COMPLETE" },
       orderBy: { createdAt: "desc" },
       select: {
+        auditRunId: true,
+        report: true,
         pageUrl: true,
         strategy: true,
         performance: true,
@@ -685,9 +698,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ...change,
     createdAt: change.createdAt.toISOString(),
   }));
+  const latestReport = latestScan ? readStoredReport(latestScan.report) : null;
   const latestScanView = latestScan
     ? {
         ...latestScan,
+        report: undefined,
+        categories: latestReport?.categories ?? [],
+        metrics: latestReport?.metrics ?? [],
         fieldData:
           latestScan.fieldData &&
           typeof latestScan.fieldData === "object" &&
@@ -859,11 +876,7 @@ export const action = async ({
       }
       const mode = validateLiquidMode(form.get("mode"));
       const filename = validateLiquidFilename(form.get("filename"), mode);
-      const imageIndexValue = form.get("imageIndex");
-      const imageIndex =
-        typeof imageIndexValue === "string" && /^\d+$/.test(imageIndexValue)
-          ? Number(imageIndexValue)
-          : undefined;
+      const imageIndex = parseStrictInteger(form.get("imageIndex"));
       if (mode === "prioritize-lcp" && imageIndex === undefined) {
         throw new Error("Choose the exact LCP image expression to prioritize.");
       }
@@ -980,11 +993,7 @@ export const action = async ({
     if (intent === "preview-liquid") {
       const mode = validateLiquidMode(form.get("mode"));
       const filename = validateLiquidFilename(form.get("filename"), mode);
-      const imageIndexValue = form.get("imageIndex");
-      const imageIndex =
-        typeof imageIndexValue === "string" && /^\d+$/.test(imageIndexValue)
-          ? Number(imageIndexValue)
-          : undefined;
+      const imageIndex = parseStrictInteger(form.get("imageIndex"));
       if (mode === "prioritize-lcp" && imageIndex === undefined) {
         throw new Error("Choose the exact LCP image expression to preview.");
       }
@@ -1076,20 +1085,6 @@ function bytes(value: number) {
   return `${new Intl.NumberFormat().format(value)} bytes`;
 }
 
-function milliseconds(value: number | undefined | null) {
-  if (value === undefined || value === null || !Number.isFinite(value)) {
-    return "No field data";
-  }
-  return value >= 1000 ? `${(value / 1000).toFixed(2)} s` : `${value} ms`;
-}
-
-function fieldStatus(value: string | undefined) {
-  if (value === "FAST") return "Good";
-  if (value === "AVERAGE") return "Needs improvement";
-  if (value === "SLOW") return "Poor";
-  return "Not classified";
-}
-
 export default function ThemeOptimizationPage() {
   const data = useLoaderData<typeof loader>();
   const inventoryFetcher = useFetcher<typeof action>();
@@ -1141,108 +1136,83 @@ export default function ThemeOptimizationPage() {
   const fieldMetrics = scan?.fieldData;
 
   return (
-    <s-page heading="Storefront optimization">
-      <main className="pp-scanPage">
-        <section className="pp-scanPanel pp-optimizeHero">
-          <p className="pp-eyebrow">Measured fixes · draft-theme safe</p>
-          <h1>Turn real speed findings into reviewed theme changes.</h1>
-          <p>
-            See the latest Core Web Vitals data, preview CSS/JavaScript
-            minification, defer compatible theme scripts, and tune Shopify image
-            loading. Every change is opt-in, checksum-protected, and limited to
-            an unpublished or development theme.
-          </p>
-          <div className="pp-optimizeActions">
-            <a className="pp-scanButtonLink" href="/app/scan">
-              Run a fresh audit
-            </a>
-            <a
-              className="pp-scanButtonLink pp-optimizeSecondaryLink"
-              href="#theme-picker"
-            >
-              Open optimization tools
-            </a>
-          </div>
-        </section>
+    <s-page heading="Theme optimizer">
+      <main className="pp-scanPage sb-app">
+        <PageHeader
+          icon="code"
+          eyebrow="Draft-theme safe"
+          title="Theme optimizer"
+          description="Minify CSS and JavaScript, defer compatible theme scripts and tune Shopify image loading. Every change is opt-in, checksum-protected and written only to an unpublished or development theme you can preview first."
+          actions={
+            <>
+              <a className="sb-btn sb-btn-secondary" href="/app/speed"><Icon name="bolt" size={16} />Speed boosters</a>
+              <a className="sb-btn sb-btn-primary" href="/app/scan"><Icon name="gauge" size={16} />Run a fresh audit</a>
+            </>
+          }
+        />
 
-        <section className="pp-scanPanel" aria-labelledby="core-vitals-heading">
-          <div className="pp-scanPanelHeader">
-            <div>
-              <p className="pp-eyebrow">Your latest storefront measurement</p>
-              <h2 id="core-vitals-heading">Core Web Vitals action center</h2>
-              <p>
-                {scan
-                  ? `${scan.strategy} PageSpeed run · ${new Date(scan.createdAt).toLocaleString()} · ${scan.pageUrl}`
-                  : "No completed audit is available yet. Run a PageSpeed audit to load measured results."}
+        <Card
+          icon="gauge"
+          title="Where your store stands"
+          subtitle={
+            scan ? (
+              <>
+                Latest {scan.strategy} PageSpeed run · <Time value={scan.createdAt} /> · {scan.pageUrl}
+              </>
+            ) : (
+              "No completed audit yet. Run one to see the score this page is working to improve."
+            )
+          }
+          actions={
+            scan?.auditRunId ? (
+              <a className="sb-btn sb-btn-ghost" href={`/app/scan?audit=${scan.auditRunId}`}>
+                Full report <Icon name="arrowRight" size={14} />
+              </a>
+            ) : null
+          }
+        >
+          {scan ? (
+            <>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 24, justifyContent: "space-around", alignItems: "center" }}>
+                {scan.categories.length ? (
+                  scan.categories.map((category) => (
+                    <ScoreGauge key={category.id} score={category.score} label={category.title} size={category.id === "performance" ? 116 : 76} />
+                  ))
+                ) : (
+                  <ScoreGauge score={scan.performance} label="Performance" size={116} />
+                )}
+              </div>
+              <GaugeLegend />
+              {scan.metrics.length ? (
+                <div className="sb-metrics" style={{ marginTop: 10 }}>
+                  {scan.metrics.map((metric) => (
+                    <div className="sb-metric" key={metric.id}>
+                      <span className="sb-metricName"><RatingShape rating={metric.rating} />{metric.title}</span>
+                      <span className={`sb-metricValue sb-text-${metric.rating}`}>{metric.displayValue}</span>
+                    </div>
+                  ))}
+                  <div className="sb-metric">
+                    <span className="sb-metricName">
+                      <RatingShape rating={fieldMetrics?.inpCategory === "FAST" ? "pass" : fieldMetrics?.inpCategory === "AVERAGE" ? "average" : fieldMetrics?.inpCategory === "SLOW" ? "fail" : "informative"} />
+                      Interaction to Next Paint (real users)
+                    </span>
+                    <span className="sb-metricValue">
+                      {fieldMetrics?.inpP75Ms !== undefined ? `${Math.round(fieldMetrics.inpP75Ms)} ms` : "No field data"}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
+              <p className="sb-footnote" style={{ marginTop: 12 }}>
+                Scores change only after a reviewed change is applied to your live theme and the same page is audited
+                again. Lighthouse varies by a few points between identical runs.
               </p>
+            </>
+          ) : (
+            <div style={{ display: "flex", justifyContent: "center", padding: "12px 0" }}>
+              <a className="sb-btn sb-btn-primary" href="/app/scan"><Icon name="bolt" size={16} />Run first audit</a>
             </div>
-            <a className="pp-secondaryButton" href="/app/scan">
-              View Speed Audit
-            </a>
-          </div>
-          <div className="pp-vitalsGrid">
-            <article className="pp-vitalCard">
-              <span>Largest Contentful Paint · LCP</span>
-              <strong>
-                {fieldMetrics?.lcpP75Ms !== undefined
-                  ? milliseconds(fieldMetrics.lcpP75Ms)
-                  : scan?.lcpMs !== null && scan?.lcpMs !== undefined
-                    ? milliseconds(scan.lcpMs)
-                    : "Not measured"}
-              </strong>
-              <small>
-                {fieldMetrics?.lcpP75Ms !== undefined
-                  ? `Real-user ${scan?.fieldDataSource?.toLowerCase() ?? "CrUX"} p75 · ${fieldStatus(fieldMetrics.lcpCategory)}`
-                  : scan?.lcpMs !== null && scan?.lcpMs !== undefined
-                    ? "Synthetic lab result · not field Core Web Vitals"
-                    : "Run a storefront audit first"}
-              </small>
-            </article>
-            <article className="pp-vitalCard">
-              <span>Interaction to Next Paint · INP</span>
-              <strong>{milliseconds(fieldMetrics?.inpP75Ms)}</strong>
-              <small>
-                {fieldMetrics?.inpP75Ms !== undefined
-                  ? `Real-user ${scan?.fieldDataSource?.toLowerCase() ?? "CrUX"} p75 · ${fieldStatus(fieldMetrics.inpCategory)}`
-                  : "Google returned no field INP. TBT is a separate lab diagnostic, not INP."}
-              </small>
-            </article>
-            <article className="pp-vitalCard">
-              <span>Cumulative Layout Shift · CLS</span>
-              <strong>
-                {fieldMetrics?.clsP75 !== undefined
-                  ? fieldMetrics.clsP75.toFixed(3)
-                  : scan?.cls !== null && scan?.cls !== undefined
-                    ? scan.cls.toFixed(3)
-                    : "Not measured"}
-              </strong>
-              <small>
-                {fieldMetrics?.clsP75 !== undefined
-                  ? `Real-user ${scan?.fieldDataSource?.toLowerCase() ?? "CrUX"} p75 · ${fieldStatus(fieldMetrics.clsCategory)}`
-                  : scan?.cls !== null && scan?.cls !== undefined
-                    ? "Synthetic lab result · field CLS is not available"
-                    : "Run a storefront audit first"}
-              </small>
-            </article>
-            <article className="pp-vitalCard pp-vitalDiagnostic">
-              <span>Total Blocking Time · lab diagnostic</span>
-              <strong>
-                {scan?.tbtMs === null || scan?.tbtMs === undefined
-                  ? "Not measured"
-                  : `${scan.tbtMs} ms`}
-              </strong>
-              <small>
-                Use this to investigate JavaScript work; it is not a substitute
-                for field INP.
-              </small>
-            </article>
-          </div>
-          <p className="pp-scanFootnote">
-            These measurements do not automatically change your theme. A metric
-            improves only after a reviewed change is applied and the same page
-            is tested again; PageSpeed variation is not proof of causation.
-          </p>
-        </section>
+          )}
+        </Card>
 
         {!data.canOptimize ? (
           <aside className="pp-scanNotice" role="status">

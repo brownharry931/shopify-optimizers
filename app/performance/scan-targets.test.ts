@@ -65,6 +65,9 @@ test("builds target URLs only from clean HTTPS origins", () => {
     "https://shop.example:8443",
     "https://shop.example/store",
     "https://shop.example/?token=x",
+    "https://127.0.0.1",
+    "https://[::1]",
+    "https://metadata.internal",
   ]) {
     assert.throws(() => buildTargetUrl(origin, "/"));
   }

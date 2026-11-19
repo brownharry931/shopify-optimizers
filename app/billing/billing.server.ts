@@ -1,6 +1,7 @@
 import type { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { PLAN_INTERVAL, PLAN_NAME } from "../config/plan.server";
+import { validateAppPricingEntitlement } from "./entitlement";
 
 type AuthenticatedAdmin = Awaited<ReturnType<typeof authenticate.admin>>;
 type AdminApi = AuthenticatedAdmin["admin"];
@@ -348,64 +349,25 @@ export async function getVerifiedSubscription(admin: AdminApi, shop: string) {
     };
   }
 
-  // activeSubscription already represents the current contract. Shopify can
-  // return price.active=false for a valid active contract (for example, a
-  // retired price still attached to the merchant's subscription), so this
-  // field must not be used to decide whether the contract's item is current.
-  const flatRateItems = remote.items.filter(
-    (item) => item.price.__typename === "FlatRatePrice",
-  );
-  if (
-    remote.items.length === 0 ||
-    flatRateItems.length !== remote.items.length
-  ) {
-    const itemDetails = remote.items
-      .map(
-        ({ handle, price }) =>
-          `${handle || "(no handle)"}:${price.__typename}:active=${price.active}`,
-      )
-      .join(", ");
-    console.error("Unsupported Shopify App Pricing subscription items", {
-      shop,
-      items: itemDetails || "(no items)",
-    });
-    const message =
-      "Shopify returned an active subscription outside the supported flat-rate plan configuration.";
+  // activeSubscription represents the current contract; price.active may be
+  // false when a merchant retains a retired price, so entitlement uses the
+  // contract item types, billing period, currency, amount, and cycle expiry.
+  let entitlement: { amount: number };
+  try {
+    entitlement = validateAppPricingEntitlement(
+      remote,
+      process.env.NODE_ENV === "production",
+    );
+  } catch (error) {
     throw new Response(
-      process.env.NODE_ENV === "production"
-        ? message
-        : `${message} Items: ${itemDetails || "(no items)"}`,
+      error instanceof Error
+        ? `Shopify subscription verification rejected the plan: ${error.message}`
+        : "Shopify subscription verification rejected the plan.",
       { status: 502 },
     );
   }
-  const currency = flatRateItems[0].price.currency;
-  if (
-    currency !== "USD" ||
-    flatRateItems.some((item) => item.price.currency !== currency)
-  ) {
-    throw new Response(
-      "Shopify returned an unexpected subscription currency; expected USD.",
-      { status: 502 },
-    );
-  }
-  const amount = flatRateItems.reduce((sum, item) => {
-    if (
-      typeof item.price.amount !== "string" ||
-      item.price.amount.trim() === ""
-    ) {
-      throw new Response(
-        "Shopify returned a flat-rate item without an amount.",
-        { status: 502 },
-      );
-    }
-    const itemAmount = Number(item.price.amount);
-    if (!Number.isFinite(itemAmount) || itemAmount < 0) {
-      throw new Response("Shopify returned an invalid subscription amount.", {
-        status: 502,
-      });
-    }
-    return sum + itemAmount;
-  }, 0);
+  const amount = entitlement.amount;
+  const currency = "USD";
   const expiresAt = remote.currentBillingCycle?.endTime
     ? new Date(remote.currentBillingCycle.endTime)
     : null;
@@ -432,7 +394,7 @@ export async function getVerifiedSubscription(admin: AdminApi, shop: string) {
     },
     update: {
       shopifySubscriptionId: remote.legacySubscriptionId,
-      planName: flatRateItems[0].description || PLAN_NAME,
+      planName: remote.items[0].description || PLAN_NAME,
       price: amount,
       currency,
       interval: remote.billingPeriod || PLAN_INTERVAL,

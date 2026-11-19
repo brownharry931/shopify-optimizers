@@ -29,7 +29,13 @@ const shopify = shopifyApp({
   apiVersion: ApiVersion.October26,
   // Keep the request least-privileged and aligned with shopify.app.toml.
   // write_themes also requires Shopify's public-app theme API exemption before writes are available.
-  scopes: ["read_products", "read_themes", "write_themes"],
+  // write_app_proxy is required because this app has an App Proxy configured.
+  scopes: [
+    "read_products",
+    "read_themes",
+    "write_themes",
+    "write_app_proxy",
+  ],
   appUrl: process.env.SHOPIFY_APP_URL || "",
   authPathPrefix: "/auth",
   sessionStorage: new PrismaSessionStorage(prisma),

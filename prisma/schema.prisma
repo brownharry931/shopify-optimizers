@@ -132,6 +132,9 @@ model PerformanceScan {
   fieldDataSource String?
   fieldData       Json?
   findings       Json?
+  // Lighthouse presentation data copied verbatim from the PageSpeed response.
+  report            Json?
+  lighthouseVersion String?
   error          String?
   createdAt      DateTime  @default(now())
   completedAt    DateTime?

@@ -1,3 +1,5 @@
+import { isIP } from "node:net";
+
 export type ScanStrategy = "mobile" | "desktop";
 
 export type NormalizedTarget = {
@@ -65,7 +67,13 @@ export function parseStrategies(input: unknown): ScanStrategy[] {
 }
 
 export function buildTargetUrl(primaryOrigin: string, targetPath: string) {
-  const origin = new URL(primaryOrigin);
+  let origin: URL;
+  try {
+    origin = new URL(primaryOrigin);
+  } catch {
+    throw new Error("Shopify did not return a valid HTTPS primary domain.");
+  }
+  const hostname = origin.hostname.toLowerCase();
   if (
     origin.protocol !== "https:" ||
     origin.username ||
@@ -73,7 +81,13 @@ export function buildTargetUrl(primaryOrigin: string, targetPath: string) {
     origin.port ||
     origin.pathname !== "/" ||
     origin.search ||
-    origin.hash
+    origin.hash ||
+    isIP(hostname) ||
+    !hostname.includes(".") ||
+    hostname === "localhost" ||
+    hostname.endsWith(".localhost") ||
+    hostname.endsWith(".local") ||
+    hostname.endsWith(".internal")
   ) {
     throw new Error("Shopify did not return a valid HTTPS primary domain.");
   }

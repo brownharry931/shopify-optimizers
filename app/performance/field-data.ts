@@ -5,6 +5,7 @@ export type CruxMetric = {
 
 export type PageSpeedFieldSet = {
   metrics?: Record<string, CruxMetric | undefined>;
+  overall_category?: string;
 };
 
 export type CruxFieldMetrics = {

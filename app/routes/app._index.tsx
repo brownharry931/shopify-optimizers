@@ -1,78 +1,70 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
-import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
+import { authenticate } from "../shopify.server";
 import { getVerifiedSubscription } from "../billing/billing.server";
 import { PLAN_CURRENCY, PLAN_NAME, PLAN_PRICE } from "../config/plan.server";
 import prisma from "../db.server";
+import { Icon, type IconName } from "../components/icons";
+import {
+  Badge,
+  Card,
+  EmptyState,
+  GaugeLegend,
+  PageHeader,
+  RatingShape,
+  ScoreGauge,
+  Time,
+} from "../components/ui";
+import { readStoredReport } from "../performance/lighthouse-report";
+import { loadSpeedSettings } from "../optimization/speed-settings.server";
+import { enabledCount, SPEED_BOOLEAN_KEYS } from "../optimization/speed-settings";
+import { themeEditorEmbedUrl } from "../optimization/theme-editor";
 
-const styles = {
-  actions: "pp-actions",
-  badge: "pp-badge",
-  badgeGood: "pp-badgeGood",
-  badgePending: "pp-badgePending",
-  dashboard: "pp-dashboard",
-  eyebrow: "pp-eyebrow",
-  hero: "pp-hero",
-  heroCopy: "pp-heroCopy",
-  heroSummary: "pp-heroSummary",
-  heroText: "pp-heroText",
-  heroTitle: "pp-heroTitle",
-  liveDot: "pp-liveDot",
-  lowerGrid: "pp-lowerGrid",
-  meterGrid: "pp-meterGrid",
-  metricCard: "pp-metricCard",
-  metricCode: "pp-metricCode",
-  metricFoot: "pp-metricFoot",
-  metricTop: "pp-metricTop",
-  metricValue: "pp-metricValue",
-  notice: "pp-notice",
-  noticeMark: "pp-noticeMark",
-  panel: "pp-panel",
-  panelDescription: "pp-panelDescription",
-  panelLink: "pp-panelLink",
-  primaryAction: "pp-primaryAction",
-  secondaryAction: "pp-secondaryAction",
-  sectionHeading: "pp-sectionHeading",
-  statusDetail: "pp-statusDetail",
-  statusIcon: "pp-statusIcon",
-  statusItem: "pp-statusItem",
-  statusList: "pp-statusList",
-  statusName: "pp-statusName",
-  storeDomain: "pp-storeDomain",
-  summaryLabel: "pp-summaryLabel",
-  summaryPrice: "pp-summaryPrice",
-  summaryStatus: "pp-summaryStatus",
+const latestScanSelect = {
+  id: true,
+  auditRunId: true,
+  strategy: true,
+  pageUrl: true,
+  performance: true,
+  createdAt: true,
+  report: true,
 } as const;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
-  const [response, planAccess, embedHeartbeat, latestScan] = await Promise.all([
-    admin.graphql(`#graphql
-      query StoreOverview {
-        shop {
-          name
-          myshopifyDomain
-          primaryDomain { url }
-        }
-      }
-    `),
-    getVerifiedSubscription(admin, session.shop),
-    prisma.themeEmbedHeartbeat.findUnique({ where: { shop: session.shop } }),
-    prisma.performanceScan.findFirst({
-      where: { shop: session.shop, status: "COMPLETE" },
-      orderBy: { createdAt: "desc" },
-    }),
-  ]);
+  const [response, planAccess, embedHeartbeat, mobile, desktop, recent, speed] =
+    await Promise.all([
+      admin.graphql(`#graphql
+        query StoreOverview { shop { name myshopifyDomain primaryDomain { url } } }
+      `),
+      getVerifiedSubscription(admin, session.shop),
+      prisma.themeEmbedHeartbeat.findUnique({ where: { shop: session.shop } }),
+      prisma.performanceScan.findFirst({
+        where: { shop: session.shop, status: "COMPLETE", strategy: "mobile" },
+        orderBy: { createdAt: "desc" },
+        select: latestScanSelect,
+      }),
+      prisma.performanceScan.findFirst({
+        where: { shop: session.shop, status: "COMPLETE", strategy: "desktop" },
+        orderBy: { createdAt: "desc" },
+        select: { performance: true, createdAt: true },
+      }),
+      prisma.performanceScan.findMany({
+        where: { shop: session.shop },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: { id: true, auditRunId: true, pageUrl: true, strategy: true, status: true, performance: true, createdAt: true },
+      }),
+      loadSpeedSettings(admin).catch(() => null),
+    ]);
   const result = await response.json();
   const shop = result.data?.shop;
-
   if (!shop) {
-    throw new Response("Unable to load the authenticated Shopify store.", {
-      status: 502,
-    });
+    throw new Response("Unable to load the authenticated Shopify store.", { status: 502 });
   }
 
+  const report = mobile ? readStoredReport(mobile.report) : null;
   return {
     shop,
     hasActiveSubscription: planAccess.hasActiveSubscription,
@@ -80,20 +72,28 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     planName: PLAN_NAME,
     planPrice: PLAN_PRICE,
     planCurrency: PLAN_CURRENCY,
+    pageSpeedKeyConfigured: Boolean(process.env.GOOGLE_PAGESPEED_API_KEY?.trim()),
+    embedUrl: themeEditorEmbedUrl(shop.myshopifyDomain),
     themeEmbedVerified: Boolean(
-      embedHeartbeat &&
-      embedHeartbeat.lastSeenAt.getTime() > Date.now() - 24 * 60 * 60 * 1000,
+      embedHeartbeat && embedHeartbeat.lastSeenAt.getTime() > Date.now() - 24 * 60 * 60 * 1000,
     ),
     themeEmbedLastSeenAt: embedHeartbeat?.lastSeenAt.toISOString() || null,
-    latestScan: latestScan
+    boostersEnabled: speed ? enabledCount(speed.settings) : 0,
+    boostersTotal: SPEED_BOOLEAN_KEYS.length,
+    mobile: mobile
       ? {
-          performance: latestScan.performance,
-          lcpMs: latestScan.lcpMs,
-          tbtMs: latestScan.tbtMs,
-          cls: latestScan.cls,
-          createdAt: latestScan.createdAt.toISOString(),
+          auditRunId: mobile.auditRunId,
+          pageUrl: mobile.pageUrl,
+          performance: mobile.performance,
+          createdAt: mobile.createdAt.toISOString(),
+          categories: report?.categories ?? [],
+          metrics: report?.metrics ?? [],
         }
       : null,
+    desktop: desktop
+      ? { performance: desktop.performance, createdAt: desktop.createdAt.toISOString() }
+      : null,
+    recent: recent.map((scan) => ({ ...scan, createdAt: scan.createdAt.toISOString() })),
   };
 };
 
@@ -108,263 +108,220 @@ function subscriptionLabel(status: string, active: boolean) {
   return "Needs verification";
 }
 
+function SetupItem({
+  done,
+  icon,
+  title,
+  detail,
+  action,
+}: {
+  done: boolean;
+  icon: IconName;
+  title: string;
+  detail: React.ReactNode;
+  action?: React.ReactNode;
+}) {
+  return (
+    <li className="sb-listItem">
+      <span className={`sb-listIcon ${done ? "sb-listIcon-done" : "sb-listIcon-todo"}`}>
+        <Icon name={done ? "check" : icon} size={18} />
+      </span>
+      <span className="sb-listText">
+        <strong>{title}</strong>
+        <span>{detail}</span>
+      </span>
+      {action ?? <Badge tone={done ? "success" : "warning"}>{done ? "Done" : "To do"}</Badge>}
+    </li>
+  );
+}
+
+const QUICK_ACTIONS: Array<{ href: string; icon: IconName; title: string; text: string }> = [
+  { href: "/app/scan", icon: "gauge", title: "Speed audit", text: "Lighthouse report for any page, on mobile and desktop." },
+  { href: "/app/speed", icon: "bolt", title: "Speed boosters", text: "Delay scripts, instant page loads, LCP preload, fonts and more." },
+  { href: "/app/optimize", icon: "code", title: "Theme optimizer", text: "Minify CSS/JS, defer scripts and lazy-load images on a draft theme." },
+  { href: "/app/reports", icon: "chart", title: "Reports", text: "Score trends and before/after comparisons over time." },
+];
+
 export default function Dashboard() {
   const data = useLoaderData<typeof loader>();
-  const subscriptionState = subscriptionLabel(
-    data.subscriptionStatus,
-    data.hasActiveSubscription,
-  );
-  const badgeClass = data.hasActiveSubscription
-    ? `${styles.badge} ${styles.badgeGood}`
-    : data.subscriptionStatus === "PENDING"
-      ? `${styles.badge} ${styles.badgePending}`
-      : styles.badge;
+  const subscriptionState = subscriptionLabel(data.subscriptionStatus, data.hasActiveSubscription);
+  const metricsToShow = data.mobile?.metrics ?? [];
 
   return (
-    <s-page heading="Performance Pro">
-      <main className={styles.dashboard}>
-        <section className={styles.hero} aria-labelledby="dashboard-title">
-          <div className={styles.heroCopy}>
-            <p className={styles.eyebrow}>
-              <span className={styles.liveDot} aria-hidden="true" />
-              Store connected
-            </p>
-            <h1 className={styles.heroTitle} id="dashboard-title">
-              A clearer view of your storefront speed.
-            </h1>
-            <p className={styles.heroText}>
-              Run a mobile storefront measurement, review real Lighthouse
-              opportunities, and verify that the Theme App Embed has executed on
-              your published store.
-            </p>
-            <div className={styles.actions}>
-              <a className={styles.primaryAction} href="/app/scan">
-                Run storefront scan
-              </a>
-              <a className={styles.secondaryAction} href="/app/reports">
-                Performance reports
-              </a>
-              <a className={styles.secondaryAction} href="/app/optimize">
-                Open Optimization Center
-              </a>
-              <a className={styles.secondaryAction} href="/app/billing">
-                {data.hasActiveSubscription
-                  ? "Manage subscription"
-                  : "Explore Performance Pro"}
-              </a>
+    <s-page heading="SpeedBoost">
+      <main className="sb-app">
+        <PageHeader
+          eyebrow={data.shop.name}
+          title="Store speed overview"
+          description="Measure your storefront with Google Lighthouse, switch on speed boosters, and track the results."
+          actions={
+            <>
               {data.shop.primaryDomain?.url ? (
-                <a
-                  className={styles.secondaryAction}
-                  href={data.shop.primaryDomain.url}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  View storefront <span aria-hidden="true">↗</span>
+                <a className="sb-btn sb-btn-secondary" href={data.shop.primaryDomain.url} target="_blank" rel="noreferrer">
+                  View store <Icon name="external" size={15} />
                 </a>
               ) : null}
-            </div>
-          </div>
+              <a className="sb-btn sb-btn-primary" href="/app/scan"><Icon name="bolt" size={16} />Run speed audit</a>
+            </>
+          }
+        />
 
-          <aside
-            className={styles.heroSummary}
-            aria-label="Subscription summary"
+        <div className="sb-grid sb-grid-main">
+          <Card
+            icon="gauge"
+            title="Current speed score"
+            subtitle={
+              data.mobile ? (
+                <>Homepage and pages you audit · latest mobile run <Time value={data.mobile.createdAt} relative /></>
+              ) : (
+                "No audit has run yet"
+              )
+            }
+            actions={data.mobile?.auditRunId ? <a className="sb-btn sb-btn-ghost" href={`/app/scan?audit=${data.mobile.auditRunId}`}>Full report <Icon name="arrowRight" size={14} /></a> : null}
           >
-            <p className={styles.summaryLabel}>Your plan</p>
-            <p className={styles.summaryPrice}>
-              ${data.planPrice.toFixed(2)} {data.planCurrency}{" "}
-              <span>/ every 30 days</span>
-            </p>
-            <span className={styles.summaryStatus}>
-              <span aria-hidden="true">●</span> {subscriptionState}
-            </span>
-          </aside>
-        </section>
-
-        <section aria-labelledby="metrics-title">
-          <h2 className={styles.sectionHeading} id="metrics-title">
-            Mobile Lighthouse diagnostics
-          </h2>
-          <div className={styles.meterGrid}>
-            {[
-              {
-                name: "Largest Contentful Paint",
-                code: "LCP",
-                value:
-                  data.latestScan?.lcpMs === null ||
-                  data.latestScan?.lcpMs === undefined
-                    ? "Not measured"
-                    : data.latestScan.lcpMs >= 1000
-                      ? `${(data.latestScan.lcpMs / 1000).toFixed(2)} s`
-                      : `${data.latestScan.lcpMs} ms`,
-              },
-              {
-                name: "Total Blocking Time",
-                code: "TBT",
-                value:
-                  data.latestScan?.tbtMs === null ||
-                  data.latestScan?.tbtMs === undefined
-                    ? "Not measured"
-                    : `${data.latestScan.tbtMs} ms`,
-              },
-              {
-                name: "Cumulative Layout Shift",
-                code: "CLS",
-                value:
-                  data.latestScan?.cls === null ||
-                  data.latestScan?.cls === undefined
-                    ? "Not measured"
-                    : data.latestScan.cls.toFixed(3),
-              },
-            ].map((metric) => (
-              <article className={styles.metricCard} key={metric.code}>
-                <div className={styles.metricTop}>
-                  <span>{metric.name}</span>
-                  <span className={styles.metricCode}>{metric.code}</span>
+            {data.mobile ? (
+              <>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 28, justifyContent: "space-around", alignItems: "center", paddingBottom: 6 }}>
+                  <ScoreGauge score={data.mobile.performance} label="Mobile" size={120} />
+                  <ScoreGauge score={data.desktop?.performance ?? null} label="Desktop" size={120} />
+                  {data.mobile.categories
+                    .filter((category) => category.id !== "performance")
+                    .map((category) => (
+                      <ScoreGauge key={category.id} score={category.score} label={category.title} size={72} />
+                    ))}
                 </div>
-                <p className={styles.metricValue}>{metric.value}</p>
-                <p className={styles.metricFoot}>
-                  {data.latestScan
-                    ? `Synthetic mobile · score ${data.latestScan.performance ?? "—"}/100`
-                    : "Run a mobile scan to measure"}
-                </p>
-              </article>
-            ))}
-          </div>
-        </section>
+                <GaugeLegend />
+                {metricsToShow.length ? (
+                  <>
+                    <div className="sb-sectionLabel">Mobile lab metrics<small>Values exactly as reported by Lighthouse</small></div>
+                    <div className="sb-metrics">
+                      {metricsToShow.map((metric) => (
+                        <div className="sb-metric" key={metric.id}>
+                          <span className="sb-metricName"><RatingShape rating={metric.rating} />{metric.title}</span>
+                          <span className={`sb-metricValue sb-text-${metric.rating}`}>{metric.displayValue}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : null}
+              </>
+            ) : (
+              <EmptyState
+                icon="gauge"
+                title="Measure your store"
+                action={<a className="sb-btn sb-btn-primary" href="/app/scan"><Icon name="bolt" size={16} />Run first audit</a>}
+              >
+                Your first audit takes about a minute. It shows your PageSpeed score, Core Web Vitals and the issues
+                slowing your store down.
+              </EmptyState>
+            )}
+          </Card>
 
-        <div className={styles.lowerGrid}>
-          <section className={styles.panel} aria-labelledby="readiness-title">
-            <h2 className={styles.sectionHeading} id="readiness-title">
-              Product readiness
-            </h2>
-            <p className={styles.panelDescription}>
-              SpeedBoost now offers measured Core Web Vitals guidance plus
-              reviewed CSS/JS, compatible script-deferral, and Shopify image
-              loading previews. Applying still requires Shopify&apos;s separate
-              public-app theme-write exemption and a development-theme test.
-            </p>
-            <ul className={styles.statusList}>
-              <li className={styles.statusItem}>
-                <span
-                  className={`${styles.statusIcon} ${styles.badgeGood}`}
-                  aria-hidden="true"
-                >
-                  ✓
-                </span>
-                <span className={styles.statusName}>
-                  Shopify connection
-                  <span className={styles.statusDetail}>
-                    Store data loaded for this session
-                  </span>
-                </span>
-                <span className={`${styles.badge} ${styles.badgeGood}`}>
-                  Connected
-                </span>
-              </li>
-              <li className={styles.statusItem}>
-                <span className={styles.statusIcon} aria-hidden="true">
-                  $
-                </span>
-                <span className={styles.statusName}>
-                  {data.planName} billing
-                  <span className={styles.statusDetail}>
-                    Shopify-verified subscription status
-                  </span>
-                </span>
-                <span className={badgeClass}>{subscriptionState}</span>
-              </li>
-              <li className={styles.statusItem}>
-                <span
-                  className={`${styles.statusIcon} ${data.themeEmbedVerified ? styles.badgeGood : ""}`}
-                  aria-hidden="true"
-                >
-                  {data.themeEmbedVerified ? "✓" : "↗"}
-                </span>
-                <span className={styles.statusName}>
-                  Theme App Embed
-                  <span className={styles.statusDetail}>
-                    {data.themeEmbedVerified && data.themeEmbedLastSeenAt
-                      ? `Live storefront ping received ${new Date(data.themeEmbedLastSeenAt).toLocaleString()}`
-                      : "Not confirmed yet. Visit the published storefront after enabling the embed."}
-                    {!data.themeEmbedVerified &&
-                    data.shop.primaryDomain?.url ? (
-                      <>
-                        {" "}
-                        <a
-                          href={data.shop.primaryDomain.url}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Open storefront to verify ↗
-                        </a>
-                      </>
-                    ) : null}
-                  </span>
-                </span>
-                <span
-                  className={`${styles.badge} ${data.themeEmbedVerified ? styles.badgeGood : ""}`}
-                >
-                  {data.themeEmbedVerified
-                    ? "Verified"
-                    : "Needs storefront visit"}
-                </span>
-              </li>
-              <li className={styles.statusItem}>
-                <span className={styles.statusIcon} aria-hidden="true">
-                  ⌁
-                </span>
-                <span className={styles.statusName}>
-                  Store scanner
-                  <span className={styles.statusDetail}>
-                    {data.latestScan
-                      ? `Latest mobile Lighthouse scan: ${new Date(data.latestScan.createdAt).toLocaleString()}`
-                      : "Run a real mobile Lighthouse scan to see results."}{" "}
-                    <a href="/app/scan">Open scanner →</a>
-                  </span>
-                </span>
-                <span
-                  className={`${styles.badge} ${data.latestScan ? styles.badgeGood : ""}`}
-                >
-                  {data.latestScan ? "Scan available" : "Ready to scan"}
-                </span>
-              </li>
+          <Card icon="checkCircle" title="Setup" subtitle="Complete these steps to get the most out of SpeedBoost.">
+            <ul className="sb-list">
+              <SetupItem
+                done={data.hasActiveSubscription}
+                icon="card"
+                title={`${data.planName} plan`}
+                detail={`$${data.planPrice.toFixed(2)} ${data.planCurrency} every 30 days · ${subscriptionState}`}
+                action={data.hasActiveSubscription ? undefined : <a className="sb-btn sb-btn-secondary" href="/app/billing">Choose plan</a>}
+              />
+              <SetupItem
+                done={data.themeEmbedVerified}
+                icon="layers"
+                title="App embed active"
+                detail={
+                  data.themeEmbedVerified
+                    ? <>Live on your storefront · last seen <Time value={data.themeEmbedLastSeenAt} relative /></>
+                    : "Turn on SpeedBoost in Theme settings → App embeds, then open your store once."
+                }
+                action={data.themeEmbedVerified ? undefined : <a className="sb-btn sb-btn-secondary" href={data.embedUrl} target="_top">Enable</a>}
+              />
+              <SetupItem
+                done={data.boostersEnabled > 0}
+                icon="bolt"
+                title="Speed boosters"
+                detail={`${data.boostersEnabled} of ${data.boostersTotal} enabled`}
+                action={<a className="sb-btn sb-btn-secondary" href="/app/speed">{data.boostersEnabled ? "Manage" : "Set up"}</a>}
+              />
+              <SetupItem
+                done={data.pageSpeedKeyConfigured}
+                icon="shield"
+                title="PageSpeed API key"
+                detail={data.pageSpeedKeyConfigured ? "Dedicated Google quota configured" : "Server uses Google's shared quota; scans may be rate-limited."}
+              />
+              <SetupItem
+                done={Boolean(data.mobile)}
+                icon="gauge"
+                title="First audit"
+                detail={data.mobile ? "Baseline captured" : "Capture a baseline before changing anything."}
+              />
             </ul>
-          </section>
+          </Card>
+        </div>
 
-          <aside className={styles.panel} aria-labelledby="store-title">
-            <h2 className={styles.sectionHeading} id="store-title">
-              Connected store
-            </h2>
-            <p className={styles.panelDescription}>
-              This Shopify session is connected to:
-            </p>
-            <p className={styles.storeDomain}>
-              <strong>{data.shop.name}</strong>
-              <br />
-              {data.shop.myshopifyDomain}
-            </p>
-            <a className={styles.panelLink} href="/app/billing">
-              {data.hasActiveSubscription
-                ? "View billing details →"
-                : "See plan and billing options →"}
+        <div className="sb-actionsGrid">
+          {QUICK_ACTIONS.map((action) => (
+            <a key={action.href} className="sb-actionTile" href={action.href}>
+              <span><Icon name={action.icon} size={18} /></span>
+              <strong>{action.title}<Icon name="arrowRight" size={15} /></strong>
+              <p>{action.text}</p>
             </a>
-          </aside>
+          ))}
         </div>
 
-        <div className={styles.notice} role="note">
-          <span className={styles.noticeMark} aria-hidden="true">
-            i
-          </span>
-          <span>
-            Mobile Lighthouse values are synthetic lab measurements, not field
-            Core Web Vitals. The app does not make theme changes automatically;
-            review real scan findings and retest before claiming an improvement.
-          </span>
-        </div>
+        <Card
+          icon="history"
+          title="Recent audits"
+          actions={<a className="sb-btn sb-btn-ghost" href="/app/reports">All reports <Icon name="arrowRight" size={14} /></a>}
+        >
+          {data.recent.length ? (
+            <div className="sb-tableWrap">
+              <table className="sb-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Date</th>
+                    <th scope="col">Page</th>
+                    <th scope="col">Device</th>
+                    <th scope="col" className="sb-cellNum">Score</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.recent.map((scan) => (
+                    <tr key={scan.id}>
+                      <td style={{ whiteSpace: "nowrap" }}><Time value={scan.createdAt} /></td>
+                      <td>
+                        {scan.auditRunId ? (
+                          <a href={`/app/scan?audit=${scan.auditRunId}`}><span className="sb-cellUrl">{scan.pageUrl}</span></a>
+                        ) : (
+                          <span className="sb-cellUrl">{scan.pageUrl}</span>
+                        )}
+                      </td>
+                      <td style={{ textTransform: "capitalize" }}>{scan.strategy}</td>
+                      <td className="sb-cellNum">
+                        {scan.status === "COMPLETE" ? (
+                          <span className={`sb-scorePill sb-rate-${(scan.performance ?? 0) >= 90 ? "pass" : (scan.performance ?? 0) >= 50 ? "average" : "fail"}`}>{scan.performance}</span>
+                        ) : (
+                          <Badge tone={scan.status === "FAILED" ? "critical" : "neutral"}>{scan.status === "FAILED" ? "Failed" : "Running"}</Badge>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="sb-muted">Audits you run appear here.</p>
+          )}
+        </Card>
+
+        <p className="sb-footnote">
+          Lighthouse scores are lab measurements on an emulated device. Real-visitor Core Web Vitals (CrUX) appear in
+          each audit when Google has enough traffic data for your store.
+        </p>
       </main>
     </s-page>
   );
 }
 
-export const headers: HeadersFunction = (headersArgs) =>
-  boundary.headers(headersArgs);
+export const headers: HeadersFunction = (headersArgs) => boundary.headers(headersArgs);
