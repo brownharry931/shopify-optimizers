@@ -4,6 +4,7 @@ import {
   useActionData,
   useLoaderData,
   useNavigation,
+  Link,
 } from "react-router";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
@@ -49,8 +50,14 @@ import {
   publicAudit,
   runStorefrontScan,
 } from "../performance/scan.server";
+import { pageSpeedKeyConfigured } from "../performance/pagespeed-client.server";
 
 const MAX_AUDITS_PER_HOUR = 6;
+// A completed audit of the same page and devices is reused for this long, so
+// repeat clicks never spend Google quota on an identical measurement.
+const CACHE_MINUTES = 10;
+// A RUNNING audit younger than this blocks a duplicate run of the same page.
+const RUNNING_LOCK_MINUTES = 3;
 
 async function primaryDomain(admin: Awaited<ReturnType<typeof authenticate.admin>>["admin"]) {
   const response = await admin.graphql(`#graphql
@@ -78,7 +85,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   ]);
   return {
     canScan: access.isVerified && access.hasActiveSubscription,
-    pageSpeedKeyConfigured: Boolean(process.env.GOOGLE_PAGESPEED_API_KEY?.trim()),
+    pageSpeedKeyConfigured: pageSpeedKeyConfigured(),
     subscriptionVerified: access.isVerified,
     storefrontOrigin: origin,
     latestAudit: audit ? publicAudit(audit) : null,
@@ -117,18 +124,52 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     const pageUrl = new URL(target.targetPath, primaryOrigin).toString();
+    const force = form.get("force") === "1";
+    const now = Date.now();
+
+    if (!force) {
+      const cached = await prisma.auditRun.findFirst({
+        where: {
+          shop: session.shop,
+          pageUrl,
+          status: "COMPLETE",
+          strategies: { hasEvery: strategies },
+          createdAt: { gte: new Date(now - CACHE_MINUTES * 60_000) },
+        },
+        orderBy: { createdAt: "desc" },
+        include: { scans: { orderBy: { strategy: "desc" } } },
+      });
+      if (cached) {
+        return { ok: true as const, error: null, cached: true, audit: publicAudit(cached) };
+      }
+    }
+
     const audit = await prisma.$transaction(
       async (tx: Prisma.TransactionClient) => {
-        // Serialize quota checks per shop so concurrent submissions cannot all
-        // pass the same count check.
+        // Serialize per shop so concurrent submissions cannot both pass the
+        // duplicate and quota checks.
         await tx.$queryRaw`SELECT 1 AS locked FROM (SELECT pg_advisory_xact_lock(hashtextextended(${session.shop}, 0))) AS advisory_lock`;
-        const since = new Date(Date.now() - 60 * 60 * 1000);
+        const running = await tx.auditRun.findFirst({
+          where: {
+            shop: session.shop,
+            pageUrl,
+            status: "RUNNING",
+            createdAt: { gte: new Date(now - RUNNING_LOCK_MINUTES * 60_000) },
+          },
+          select: { id: true },
+        });
+        if (running) {
+          throw new Error(
+            "An audit of this page is already running. Its result will appear here when it finishes; no second Google request was made.",
+          );
+        }
+        const since = new Date(now - 60 * 60 * 1000);
         const runsInWindow = await tx.auditRun.count({
           where: { shop: session.shop, createdAt: { gte: since } },
         });
         if (runsInWindow >= MAX_AUDITS_PER_HOUR) {
           throw new Error(
-            `Audit limit reached: up to ${MAX_AUDITS_PER_HOUR} audit runs per store each hour.`,
+            `Audit limit reached: up to ${MAX_AUDITS_PER_HOUR} fresh audits per store each hour. Recent results stay available below.`,
           );
         }
         return tx.auditRun.create({
@@ -176,6 +217,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return {
       ok: status !== "FAILED",
       error,
+      cached: false,
       audit: publicAudit(updatedAudit),
     } as const;
   } catch (error) {
@@ -405,7 +447,7 @@ function ImageSavings({ report }: { report: LighthouseReport }) {
         </div>
       ) : null}
       <p className="sb-footnote" style={{ marginTop: 12 }}>
-        To serve the smaller version, the theme must request it: use <a href="/app/optimize">Theme optimizer</a> for
+        To serve the smaller version, the theme must request it: use <Link to="/app/optimize">Theme optimizer</Link> for
         lazy loading and responsive <code>image_url</code> widths, or ask your theme developer to add a matching{" "}
         <code>srcset</code>. Re-run the audit afterwards to confirm the gain.
       </p>
@@ -670,9 +712,11 @@ export default function ScanPage() {
         />
 
         {!data.pageSpeedKeyConfigured ? (
-          <Banner tone="warning" title="Google PageSpeed API key is not configured">
-            Scans use Google&apos;s shared anonymous quota, which is frequently exhausted (HTTP 429). Create a free key in
-            Google Cloud Console (PageSpeed Insights API) and set <code>GOOGLE_PAGESPEED_API_KEY</code> on the app server.
+          <Banner tone="warning" title="This server has no Google PageSpeed API key">
+            The app process serving this page does not have <code>GOOGLE_PAGESPEED_API_KEY</code>, so audits fall back to
+            Google&apos;s shared anonymous quota, which is usually exhausted. The key must be set where this server runs:
+            on Render for the deployed app, or in a local <code>.env</code> file (or Codespaces secret) for{" "}
+            <code>shopify app dev</code>. Restart the server after adding it.
           </Banner>
         ) : null}
 
@@ -681,7 +725,7 @@ export default function ScanPage() {
             {!data.subscriptionVerified
               ? "Subscription status is not verified with Shopify yet."
               : "An active SpeedBoost subscription is required to run an audit."}{" "}
-            <a href="/app/billing">View billing</a>
+            <Link to="/app/billing">View billing</Link>
           </Banner>
         ) : null}
 
@@ -765,6 +809,28 @@ export default function ScanPage() {
                 </div>
               ) : null}
             </Card>
+            {actionData && "cached" in actionData && actionData.cached ? (
+              <Banner tone="info" title="Showing the audit from a few minutes ago">
+                This page and device were audited <Time value={audit.createdAt} relative />, so the saved result is shown
+                instead of spending Google quota on an identical measurement.
+                <Form method="post" style={{ marginTop: 8 }}>
+                  <input type="hidden" name="intent" value="scan" />
+                  <input type="hidden" name="force" value="1" />
+                  <input type="hidden" name="targetPath" value={audit.targetPath} />
+                  <input type="hidden" name="strategy" value={audit.strategies.length > 1 ? "both" : audit.strategies[0]} />
+                  <button type="submit" className="sb-btn sb-btn-secondary" disabled={!data.canScan || busy}>
+                    <Icon name="refresh" size={15} /> Run a fresh audit anyway
+                  </button>
+                </Form>
+              </Banner>
+            ) : null}
+            {selected?.report?.passwordProtected ? (
+              <Banner tone="warning" title="Lighthouse measured your password page">
+                The storefront is password-protected, so Google was redirected to <code>/password</code> and these scores
+                describe that page, not your real storefront. Remove the password (Online Store → Preferences) to audit
+                the actual pages.
+              </Banner>
+            ) : null}
             {selected ? <ScanReport scan={selected} pageUrl={audit.pageUrl} /> : null}
             <Banner tone="info" title="Why a new run on pagespeed.web.dev can differ by a few points">
               Every Lighthouse run is a fresh measurement, so network and server timing make scores move by a few points

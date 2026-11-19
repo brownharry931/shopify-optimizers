@@ -1,7 +1,7 @@
 import type { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { PLAN_INTERVAL, PLAN_NAME } from "../config/plan.server";
-import { validateAppPricingEntitlement } from "./entitlement";
+import { cachedEntitlementState, validateAppPricingEntitlement } from "./entitlement";
 
 type AuthenticatedAdmin = Awaited<ReturnType<typeof authenticate.admin>>;
 type AdminApi = AuthenticatedAdmin["admin"];
@@ -261,7 +261,54 @@ async function getLatestPartnerSubscriptionEvent(shopId: string) {
   }
 }
 
-export async function getVerifiedSubscription(admin: AdminApi, shop: string) {
+type SubscriptionRow = Awaited<ReturnType<typeof prisma.subscription.findUnique>>;
+
+function activeFromCache(subscription: NonNullable<SubscriptionRow>, verification: "cached" | "grace") {
+  return {
+    subscription,
+    subscriptionStatus: "ACTIVE",
+    lastStatusEvent: null,
+    isVerified: true,
+    hasActiveSubscription: true,
+    verification,
+  };
+}
+
+/**
+ * Verified subscription status for a shop.
+ *
+ * An ACTIVE plan verified with Shopify in the last 10 minutes is reused
+ * without network calls (fast page loads). If the live Partner API check
+ * fails, a previously verified ACTIVE plan keeps access for up to 72 hours
+ * (until its billing cycle ends) so paying merchants are not locked out by a
+ * temporary outage. Cancelled, frozen or unverified shops never get access
+ * from the cache.
+ */
+export async function getVerifiedSubscription(
+  admin: AdminApi,
+  shop: string,
+  options: { live?: boolean } = {},
+) {
+  if (options.live || !process.env.SHOPIFY_PARTNER_API_ACCESS_TOKEN?.trim()) {
+    return verifySubscriptionLive(admin, shop);
+  }
+  const stored = await prisma.subscription.findUnique({ where: { shop } });
+  const cacheState = stored
+    ? cachedEntitlementState(stored, new Date())
+    : "none";
+  if (stored && cacheState === "fresh") return activeFromCache(stored, "cached");
+  try {
+    return await verifySubscriptionLive(admin, shop);
+  } catch (error) {
+    if (stored && cacheState === "grace") {
+      console.warn("Live billing verification failed; using recent verified plan", { shop });
+      return activeFromCache(stored, "grace");
+    }
+    throw error;
+  }
+}
+
+async function verifySubscriptionLive(admin: AdminApi, shop: string) {
   const hasPartnerConfiguration = Boolean(
     process.env.SHOPIFY_PARTNER_API_ACCESS_TOKEN?.trim(),
   );
@@ -278,6 +325,7 @@ export async function getVerifiedSubscription(admin: AdminApi, shop: string) {
       isVerified: false,
       hasActiveSubscription: false,
       verificationError: message,
+      verification: "live" as const,
     };
   }
 
@@ -346,6 +394,7 @@ export async function getVerifiedSubscription(admin: AdminApi, shop: string) {
         : null,
       isVerified: true,
       hasActiveSubscription: false,
+      verification: "live" as const,
     };
   }
 
@@ -413,6 +462,7 @@ export async function getVerifiedSubscription(admin: AdminApi, shop: string) {
     lastStatusEvent: null,
     isVerified: true,
     hasActiveSubscription: true,
+    verification: "live" as const,
   };
 }
 

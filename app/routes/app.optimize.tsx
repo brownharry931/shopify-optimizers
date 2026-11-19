@@ -1,4 +1,4 @@
-import { useFetcher, useLoaderData } from "react-router";
+import { useFetcher, useLoaderData, Link } from "react-router";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { createHash } from "node:crypto";
 import { boundary } from "@shopify/shopify-app-react-router/server";
@@ -1145,8 +1145,8 @@ export default function ThemeOptimizationPage() {
           description="Minify CSS and JavaScript, defer compatible theme scripts and tune Shopify image loading. Every change is opt-in, checksum-protected and written only to an unpublished or development theme you can preview first."
           actions={
             <>
-              <a className="sb-btn sb-btn-secondary" href="/app/speed"><Icon name="bolt" size={16} />Speed boosters</a>
-              <a className="sb-btn sb-btn-primary" href="/app/scan"><Icon name="gauge" size={16} />Run a fresh audit</a>
+              <Link className="sb-btn sb-btn-secondary" to="/app/speed"><Icon name="bolt" size={16} />Speed boosters</Link>
+              <Link className="sb-btn sb-btn-primary" to="/app/scan"><Icon name="gauge" size={16} />Run a fresh audit</Link>
             </>
           }
         />
@@ -1165,9 +1165,9 @@ export default function ThemeOptimizationPage() {
           }
           actions={
             scan?.auditRunId ? (
-              <a className="sb-btn sb-btn-ghost" href={`/app/scan?audit=${scan.auditRunId}`}>
+              <Link className="sb-btn sb-btn-ghost" to={`/app/scan?audit=${scan.auditRunId}`}>
                 Full report <Icon name="arrowRight" size={14} />
-              </a>
+              </Link>
             ) : null
           }
         >
@@ -1209,7 +1209,7 @@ export default function ThemeOptimizationPage() {
             </>
           ) : (
             <div style={{ display: "flex", justifyContent: "center", padding: "12px 0" }}>
-              <a className="sb-btn sb-btn-primary" href="/app/scan"><Icon name="bolt" size={16} />Run first audit</a>
+              <Link className="sb-btn sb-btn-primary" to="/app/scan"><Icon name="bolt" size={16} />Run first audit</Link>
             </div>
           )}
         </Card>
@@ -1219,7 +1219,7 @@ export default function ThemeOptimizationPage() {
             {!data.subscriptionVerified
               ? "Shopify subscription status is not verified. Theme tools remain locked."
               : "An active Shopify subscription is required to inspect theme assets."}{" "}
-            <a href="/app/billing">View billing</a>
+            <Link to="/app/billing">View billing</Link>
           </aside>
         ) : data.themeError ? (
           <aside className="pp-scanNotice" role="alert">

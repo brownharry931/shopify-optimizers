@@ -14,8 +14,10 @@
       {%- assign sb_body_font = settings.type_body_font | font_url -%}
       {%- if sb_body_font != blank -%}<link rel="preload" as="font" type="font/woff2" href="{{ sb_body_font }}" crossorigin>{%- endif -%}
     {%- endif -%}
-    {%- if settings.type_header_font -%}
-      {%- assign sb_heading_font = settings.type_header_font | font_url -%}
+    {%- comment -%} Dawn-family themes use type_header_font; Horizon-family themes use type_heading_font. {%- endcomment -%}
+    {%- assign sb_heading_setting = settings.type_header_font | default: settings.type_heading_font -%}
+    {%- if sb_heading_setting -%}
+      {%- assign sb_heading_font = sb_heading_setting | font_url -%}
       {%- if sb_heading_font != blank and sb_heading_font != sb_body_font -%}<link rel="preload" as="font" type="font/woff2" href="{{ sb_heading_font }}" crossorigin>{%- endif -%}
     {%- endif -%}
   {%- endif -%}
@@ -61,7 +63,7 @@
         var c;try{c=JSON.parse(document.getElementById('sb-config').textContent)}catch(e){return}
         var w=window,d=document,released=false,queue=[],BLOCKED='javascript/blocked';
         var delayList=(c.resolvedDelay||[]),neverList=(c.resolvedNever||[]);
-        function has(list,s){for(var i=0;i<list.length;i++){if(s.indexOf(list[i])!==-1)return true}return false}
+        function has(list,s){for(var i=0;i < list.length;i++){if(s.indexOf(list[i])!==-1)return true}return false}
         function shouldDelay(src,dynamic){
           if(released||!src)return false;var u;try{u=new URL(src,location.href)}catch(e){return false}
           var s=u.href.toLowerCase();if(has(neverList,s))return false;
@@ -91,7 +93,7 @@
             return el;
           };
           var mo=new MutationObserver(function(ms){
-            for(var i=0;i<ms.length;i++){var ns=ms[i].addedNodes;for(var j=0;j<ns.length;j++){var n=ns[j];
+            for(var i=0;i < ms.length;i++){var ns=ms[i].addedNodes;for(var j=0;j < ns.length;j++){var n=ns[j];
               if(n.nodeType!==1||n.tagName!=='SCRIPT'||!n.src)continue;
               if(n.type===BLOCKED||shouldDelay(n.src,false)){
                 if(n.type!==BLOCKED){n.setAttribute('data-sb-type',n.type||'');n.type=BLOCKED}
@@ -103,10 +105,10 @@
           mo.observe(d.documentElement,{childList:true,subtree:true});
           function release(){
             if(released)return;released=true;mo.disconnect();
-            for(var i=0;i<ev.length;i++)w.removeEventListener(ev[i],release,{passive:true});
+            for(var i=0;i < ev.length;i++)w.removeEventListener(ev[i],release,{passive:true});
             queue.forEach(function(old){
               var s=ce.call(d,'script');
-              for(var k=0;k<old.attributes.length;k++){var a=old.attributes[k];if(a.name!=='type'&&a.name!=='data-sb-type')s.setAttribute(a.name,a.value)}
+              for(var k=0;k < old.attributes.length;k++){var a=old.attributes[k];if(a.name!=='type'&&a.name!=='data-sb-type')s.setAttribute(a.name,a.value)}
               var t=old.getAttribute('data-sb-type');if(t)s.type=t;
               if(!old.hasAttribute('async'))s.async=false;
               d.head.appendChild(s);
@@ -114,13 +116,13 @@
           }
           w.SpeedBoost.release=release;
           var ev=['keydown','mousedown','mousemove','touchstart','wheel','scroll','pointerdown'];
-          for(var i=0;i<ev.length;i++)w.addEventListener(ev[i],release,{passive:true,once:true});
+          for(var i=0;i < ev.length;i++)w.addEventListener(ev[i],release,{passive:true,once:true});
           if(c.delayTimeoutMs>0)w.addEventListener('load',function(){setTimeout(release,c.delayTimeoutMs)});
         }
         if(c.lazyMedia){
           var VIDEO=/youtube(-nocookie)?\.com|youtu\.be|player\.vimeo\.com|fast\.wistia|loom\.com\/embed|tiktok\.com\/embed|instagram\.com|maps\.google|google\.com\/maps/i;
           new MutationObserver(function(ms){
-            for(var i=0;i<ms.length;i++){var ns=ms[i].addedNodes;for(var j=0;j<ns.length;j++){var n=ns[j];if(n.nodeType!==1)continue;
+            for(var i=0;i < ms.length;i++){var ns=ms[i].addedNodes;for(var j=0;j < ns.length;j++){var n=ns[j];if(n.nodeType!==1)continue;
               if(n.tagName==='IFRAME'&&n.src&&VIDEO.test(n.src)&&!n.hasAttribute('data-sb-src')){n.setAttribute('data-sb-src',n.src);n.setAttribute('loading','lazy');n.src='about:blank'}
               else if(n.tagName==='VIDEO'&&!n.autoplay&&n.getAttribute('preload')!=='none'){n.setAttribute('preload','none')}
             }}

@@ -2406,3 +2406,39 @@ i.sb-chartSeries-b {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* Skeleton placeholder for streamed content */
+.sb-skeleton {
+  display: inline-block;
+  height: 14px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--sb-surface-3) 0%, #e8ebf0 50%, var(--sb-surface-3) 100%);
+  background-size: 200% 100%;
+  animation: sb-shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes sb-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* Top progress bar while a page's data loads */
+.sb-navProgress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  height: 3px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.sb-navProgress span {
+  display: block;
+  height: 100%;
+  width: 35%;
+  background: #1b4dff;
+  animation: sb-indeterminate 1s ease-in-out infinite;
+}

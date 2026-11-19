@@ -98,6 +98,15 @@
 
   // Same-origin Shopify App Proxy request; the server verifies Shopify's proxy
   // signature and derives the shop from that verified session, not from input.
+  // Throttled to once per browser per day: it only confirms the runtime is
+  // live, so it must not add a server request to every storefront page view.
+  try {
+    const last = Number(localStorage.getItem("sb-heartbeat") || 0);
+    if (Date.now() - last < 24 * 60 * 60 * 1000) return;
+    localStorage.setItem("sb-heartbeat", String(Date.now()));
+  } catch {
+    // Storage blocked (private mode): fall through and ping once.
+  }
   fetch("/apps/speedboost/heartbeat", {
     method: "POST",
     credentials: "same-origin",

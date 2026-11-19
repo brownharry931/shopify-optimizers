@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useLoaderData } from "react-router";
+import { useLoaderData, Link } from "react-router";
 import type { LoaderFunctionArgs } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
@@ -187,7 +187,7 @@ export default function ReportsPage() {
           eyebrow="Measured history"
           title="Performance reports"
           description="Every completed PageSpeed run, with score trends and run-over-run changes for the same page and device."
-          actions={<a className="sb-btn sb-btn-primary" href="/app/scan"><Icon name="bolt" size={16} />New audit</a>}
+          actions={<Link className="sb-btn sb-btn-primary" to="/app/scan"><Icon name="bolt" size={16} />New audit</Link>}
         />
 
         {!data.hasAccess ? (
@@ -195,14 +195,14 @@ export default function ReportsPage() {
             {!data.subscriptionVerified
               ? "Shopify subscription status is not verified."
               : "An active subscription is required to view reports."}{" "}
-            <a href="/app/billing">View billing</a>
+            <Link to="/app/billing">View billing</Link>
           </Banner>
         ) : data.rows.length === 0 ? (
           <Card>
             <EmptyState
               icon="chart"
               title="No reports yet"
-              action={<a className="sb-btn sb-btn-primary" href="/app/scan"><Icon name="bolt" size={16} />Run your first audit</a>}
+              action={<Link className="sb-btn sb-btn-primary" to="/app/scan"><Icon name="bolt" size={16} />Run your first audit</Link>}
             >
               Reports fill in automatically after each Speed Audit. Run one now, apply a booster, then run it again to
               see the change. Sample or estimated data is never shown.
@@ -308,9 +308,9 @@ function HistoryRow({ row, scoreDelta, lcpDelta }: { row: Row; scoreDelta: numbe
       <td className="sb-cellNum">{[row.accessibility, row.bestPractices, row.seo].map((score) => score ?? "—").join(" · ")}</td>
       <td>
         {row.auditId ? (
-          <a className="sb-btn sb-btn-ghost" href={`/app/scan?audit=${encodeURIComponent(row.auditId)}`} style={{ minHeight: 28, padding: "4px 8px" }}>
+          <Link className="sb-btn sb-btn-ghost" to={`/app/scan?audit=${encodeURIComponent(row.auditId)}`} style={{ minHeight: 28, padding: "4px 8px" }}>
             View <Icon name="arrowRight" size={14} />
-          </a>
+          </Link>
         ) : null}
       </td>
     </tr>

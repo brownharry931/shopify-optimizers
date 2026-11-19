@@ -135,6 +135,8 @@ export type LighthouseReport = {
   images: ReportImage[];
   fieldOverall: string | null;
   fieldOriginOverall: string | null;
+  /** Lighthouse ended on Shopify's storefront password page. */
+  passwordProtected?: boolean;
   /** Measured after the run on Shopify's CDN (see image-savings.server.ts). */
   imageSavings?: ImageSaving[];
 };
@@ -557,6 +559,13 @@ export function extractLighthouseReport(
   });
 
   const formFactor = result.configSettings?.formFactor;
+  const finalUrl = result.finalDisplayedUrl ?? result.finalUrl ?? null;
+  let passwordProtected = false;
+  try {
+    passwordProtected = finalUrl ? new URL(finalUrl).pathname.replace(/\/$/, "") === "/password" : false;
+  } catch {
+    passwordProtected = false;
+  }
   return {
     version: 2,
     lighthouseVersion: result.lighthouseVersion ?? null,
@@ -581,6 +590,7 @@ export function extractLighthouseReport(
     fieldOverall: payload.loadingExperience?.overall_category ?? null,
     fieldOriginOverall:
       payload.originLoadingExperience?.overall_category ?? null,
+    passwordProtected,
   };
 }
 

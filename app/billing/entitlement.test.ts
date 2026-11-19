@@ -63,3 +63,29 @@ test("rejects malformed, unsupported, and expired subscriptions", () => {
     /expired/,
   );
 });
+
+import { cachedEntitlementState } from "./entitlement";
+
+test("recently verified ACTIVE plans skip the live check; older ones only cover outages", () => {
+  const now = new Date("2026-11-20T12:00:00Z");
+  const row = (minutesAgo: number, status = "ACTIVE", expiresAt: Date | null = null) => ({
+    status,
+    updatedAt: new Date(now.getTime() - minutesAgo * 60_000),
+    expiresAt,
+  });
+  assert.equal(cachedEntitlementState(row(5), now), "fresh");
+  assert.equal(cachedEntitlementState(row(60), now), "grace");
+  assert.equal(cachedEntitlementState(row(73 * 60), now), "none");
+  assert.equal(cachedEntitlementState(null, now), "none");
+});
+
+test("cancelled, frozen or expired plans never grant cached access", () => {
+  const now = new Date("2026-11-20T12:00:00Z");
+  const recent = new Date(now.getTime() - 60_000);
+  assert.equal(cachedEntitlementState({ status: "CANCELLED", updatedAt: recent, expiresAt: null }, now), "none");
+  assert.equal(cachedEntitlementState({ status: "FROZEN", updatedAt: recent, expiresAt: null }, now), "none");
+  assert.equal(
+    cachedEntitlementState({ status: "ACTIVE", updatedAt: recent, expiresAt: new Date(now.getTime() - 1) }, now),
+    "none",
+  );
+});

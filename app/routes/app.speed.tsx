@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { useFetcher, useLoaderData } from "react-router";
+import { useFetcher, useLoaderData, Link } from "react-router";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { getVerifiedSubscription } from "../billing/billing.server";
-import prisma from "../db.server";
+import { getEmbedStatus } from "../optimization/embed-status.server";
+import { DeferredEmbedStatus, EmbedBanner, embedBadge, embedDetail } from "../components/embed-status";
 import { Icon, type IconName } from "../components/icons";
 import { Badge, Banner, Card, PageHeader, Spinner, Time } from "../components/ui";
 import {
@@ -21,12 +22,13 @@ import { themeEditorEmbedUrl } from "../optimization/theme-editor";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
-  const [access, stored, heartbeat] = await Promise.all([
+  // The theme check is streamed: the page renders without waiting for it.
+  const embed = getEmbedStatus(admin, session.shop);
+  const [access, stored] = await Promise.all([
     getVerifiedSubscription(admin, session.shop),
     loadSpeedSettings(admin).catch((error: unknown) => ({
       error: error instanceof Error ? error.message : "Could not load settings.",
     })),
-    prisma.themeEmbedHeartbeat.findUnique({ where: { shop: session.shop } }),
   ]);
   const loadError = "error" in stored ? stored.error : null;
   return {
@@ -36,8 +38,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     updatedAt: "settings" in stored ? stored.updatedAt : null,
     loadError,
     embedUrl: themeEditorEmbedUrl(session.shop),
-    embedLive: Boolean(heartbeat && heartbeat.lastSeenAt.getTime() > Date.now() - 24 * 60 * 60 * 1000),
-    embedLastSeen: heartbeat?.lastSeenAt.toISOString() ?? null,
+    embed,
   };
 };
 
@@ -268,7 +269,7 @@ export default function SpeedBoostersPage() {
               <a className="sb-btn sb-btn-secondary" href={data.embedUrl} target="_top">
                 <Icon name="layers" size={16} />Theme app embed
               </a>
-              <a className="sb-btn sb-btn-primary" href="/app/scan"><Icon name="gauge" size={16} />Measure impact</a>
+              <Link className="sb-btn sb-btn-primary" to="/app/scan"><Icon name="gauge" size={16} />Measure impact</Link>
             </>
           }
         />
@@ -276,10 +277,14 @@ export default function SpeedBoostersPage() {
         <div className="sb-stats">
           <div className="sb-stat">
             <span><Icon name="layers" size={15} />App embed</span>
-            <strong style={{ fontSize: 16, paddingTop: 4 }}>
-              {data.embedLive ? <Badge tone="success">Live</Badge> : <Badge tone="warning">Not detected</Badge>}
-            </strong>
-            <small>{data.embedLive ? <>Seen <Time value={data.embedLastSeen} relative /></> : "Enable it, then visit your store"}</small>
+            <DeferredEmbedStatus status={data.embed}>
+              {(status) => (
+                <>
+                  <strong style={{ fontSize: 16, paddingTop: 4 }}>{embedBadge(status)}</strong>
+                  <small>{embedDetail(status)}</small>
+                </>
+              )}
+            </DeferredEmbedStatus>
           </div>
           <div className="sb-stat">
             <span><Icon name="bolt" size={15} />Boosters on</span>
@@ -298,23 +303,20 @@ export default function SpeedBoostersPage() {
           </div>
         </div>
 
-        {!data.embedLive ? (
-          <Banner tone="warning" title="Turn on the SpeedBoost app embed to apply boosters">
-            Boosters run from the app embed in your live theme. Select <strong style={{ display: "inline" }}>Theme app embed</strong>,
-            switch SpeedBoost on, save, then open your storefront once to confirm.
-          </Banner>
-        ) : null}
+        <DeferredEmbedStatus status={data.embed}>
+          {(status) => <EmbedBanner status={status} embedUrl={data.embedUrl} />}
+        </DeferredEmbedStatus>
         {!data.canEdit ? (
           <Banner tone="warning" title="Boosters are locked">
             {data.subscriptionVerified ? "An active subscription is required." : "Subscription status is not verified yet."}{" "}
-            <a href="/app/billing">View billing</a>
+            <Link to="/app/billing">View billing</Link>
           </Banner>
         ) : null}
         {data.loadError ? <Banner tone="critical" title="Saved settings could not be loaded">{data.loadError}</Banner> : null}
         {fetcher.data && !fetcher.data.ok ? <Banner tone="critical" title="Not saved">{fetcher.data.error}</Banner> : null}
         {fetcher.state === "idle" && fetcher.data?.ok && !dirty ? (
           <Banner tone="success" title="Speed boosters saved">
-            Changes are live on your storefront&apos;s next page view. <a href="/app/scan">Run an audit</a> to measure the effect.
+            Changes are live on your storefront&apos;s next page view. <Link to="/app/scan">Run an audit</Link> to measure the effect.
           </Banner>
         ) : null}
 

@@ -80,3 +80,35 @@ export function validateAppPricingEntitlement(
 
   return { amount };
 }
+
+export type CachedSubscriptionRow = {
+  status: string;
+  updatedAt: Date;
+  expiresAt: Date | null;
+};
+
+/** How long a live Shopify verification of an ACTIVE plan is trusted. */
+export const VERIFIED_CACHE_MS = 10 * 60 * 1000;
+/** How long an ACTIVE plan survives a Partner API outage. */
+export const OUTAGE_GRACE_MS = 72 * 60 * 60 * 1000;
+
+/**
+ * Decide whether a stored ACTIVE subscription can stand in for a live
+ * Partner API check. "fresh": skip the network call. "grace": use only if
+ * the live check fails. "none": the live result is required.
+ * Non-active or expired rows never grant access.
+ */
+export function cachedEntitlementState(
+  row: CachedSubscriptionRow | null,
+  now: Date,
+  freshMs = VERIFIED_CACHE_MS,
+  graceMs = OUTAGE_GRACE_MS,
+): "fresh" | "grace" | "none" {
+  if (!row || row.status !== "ACTIVE") return "none";
+  if (row.expiresAt && row.expiresAt.getTime() <= now.getTime()) return "none";
+  const age = now.getTime() - row.updatedAt.getTime();
+  if (age < 0) return "none";
+  if (age < freshMs) return "fresh";
+  if (age < graceMs) return "grace";
+  return "none";
+}

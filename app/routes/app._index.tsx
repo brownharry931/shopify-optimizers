@@ -1,5 +1,5 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { useLoaderData } from "react-router";
+import { useLoaderData, Link } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import { getVerifiedSubscription } from "../billing/billing.server";
@@ -20,6 +20,9 @@ import { readStoredReport } from "../performance/lighthouse-report";
 import { loadSpeedSettings } from "../optimization/speed-settings.server";
 import { enabledCount, SPEED_BOOLEAN_KEYS } from "../optimization/speed-settings";
 import { themeEditorEmbedUrl } from "../optimization/theme-editor";
+import { getEmbedStatus } from "../optimization/embed-status.server";
+import { embedIsActive } from "../optimization/embed-status";
+import { DeferredEmbedStatus, embedBadge, embedDetail } from "../components/embed-status";
 
 const latestScanSelect = {
   id: true,
@@ -33,13 +36,13 @@ const latestScanSelect = {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
-  const [response, planAccess, embedHeartbeat, mobile, desktop, recent, speed] =
+  const embed = getEmbedStatus(admin, session.shop);
+  const [response, planAccess, mobile, desktop, recent, speed] =
     await Promise.all([
       admin.graphql(`#graphql
         query StoreOverview { shop { name myshopifyDomain primaryDomain { url } } }
       `),
       getVerifiedSubscription(admin, session.shop),
-      prisma.themeEmbedHeartbeat.findUnique({ where: { shop: session.shop } }),
       prisma.performanceScan.findFirst({
         where: { shop: session.shop, status: "COMPLETE", strategy: "mobile" },
         orderBy: { createdAt: "desc" },
@@ -74,10 +77,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     planCurrency: PLAN_CURRENCY,
     pageSpeedKeyConfigured: Boolean(process.env.GOOGLE_PAGESPEED_API_KEY?.trim()),
     embedUrl: themeEditorEmbedUrl(shop.myshopifyDomain),
-    themeEmbedVerified: Boolean(
-      embedHeartbeat && embedHeartbeat.lastSeenAt.getTime() > Date.now() - 24 * 60 * 60 * 1000,
-    ),
-    themeEmbedLastSeenAt: embedHeartbeat?.lastSeenAt.toISOString() || null,
+    embed,
     boostersEnabled: speed ? enabledCount(speed.settings) : 0,
     boostersTotal: SPEED_BOOLEAN_KEYS.length,
     mobile: mobile
@@ -161,7 +161,7 @@ export default function Dashboard() {
                   View store <Icon name="external" size={15} />
                 </a>
               ) : null}
-              <a className="sb-btn sb-btn-primary" href="/app/scan"><Icon name="bolt" size={16} />Run speed audit</a>
+              <Link className="sb-btn sb-btn-primary" to="/app/scan"><Icon name="bolt" size={16} />Run speed audit</Link>
             </>
           }
         />
@@ -177,7 +177,7 @@ export default function Dashboard() {
                 "No audit has run yet"
               )
             }
-            actions={data.mobile?.auditRunId ? <a className="sb-btn sb-btn-ghost" href={`/app/scan?audit=${data.mobile.auditRunId}`}>Full report <Icon name="arrowRight" size={14} /></a> : null}
+            actions={data.mobile?.auditRunId ? <Link className="sb-btn sb-btn-ghost" to={`/app/scan?audit=${data.mobile.auditRunId}`}>Full report <Icon name="arrowRight" size={14} /></Link> : null}
           >
             {data.mobile ? (
               <>
@@ -209,7 +209,7 @@ export default function Dashboard() {
               <EmptyState
                 icon="gauge"
                 title="Measure your store"
-                action={<a className="sb-btn sb-btn-primary" href="/app/scan"><Icon name="bolt" size={16} />Run first audit</a>}
+                action={<Link className="sb-btn sb-btn-primary" to="/app/scan"><Icon name="bolt" size={16} />Run first audit</Link>}
               >
                 Your first audit takes about a minute. It shows your PageSpeed score, Core Web Vitals and the issues
                 slowing your store down.
@@ -224,25 +224,31 @@ export default function Dashboard() {
                 icon="card"
                 title={`${data.planName} plan`}
                 detail={`$${data.planPrice.toFixed(2)} ${data.planCurrency} every 30 days · ${subscriptionState}`}
-                action={data.hasActiveSubscription ? undefined : <a className="sb-btn sb-btn-secondary" href="/app/billing">Choose plan</a>}
+                action={data.hasActiveSubscription ? undefined : <Link className="sb-btn sb-btn-secondary" to="/app/billing">Choose plan</Link>}
               />
-              <SetupItem
-                done={data.themeEmbedVerified}
-                icon="layers"
-                title="App embed active"
-                detail={
-                  data.themeEmbedVerified
-                    ? <>Live on your storefront · last seen <Time value={data.themeEmbedLastSeenAt} relative /></>
-                    : "Turn on SpeedBoost in Theme settings → App embeds, then open your store once."
-                }
-                action={data.themeEmbedVerified ? undefined : <a className="sb-btn sb-btn-secondary" href={data.embedUrl} target="_top">Enable</a>}
-              />
+              <DeferredEmbedStatus status={data.embed}>
+                {(status) => (
+                  <SetupItem
+                    done={embedIsActive(status)}
+                    icon="layers"
+                    title="App embed"
+                    detail={embedDetail(status)}
+                    action={
+                      embedIsActive(status) ? undefined : status.theme === "unknown" ? (
+                        embedBadge(status)
+                      ) : (
+                        <a className="sb-btn sb-btn-secondary" href={data.embedUrl} target="_top">Enable</a>
+                      )
+                    }
+                  />
+                )}
+              </DeferredEmbedStatus>
               <SetupItem
                 done={data.boostersEnabled > 0}
                 icon="bolt"
                 title="Speed boosters"
                 detail={`${data.boostersEnabled} of ${data.boostersTotal} enabled`}
-                action={<a className="sb-btn sb-btn-secondary" href="/app/speed">{data.boostersEnabled ? "Manage" : "Set up"}</a>}
+                action={<Link className="sb-btn sb-btn-secondary" to="/app/speed">{data.boostersEnabled ? "Manage" : "Set up"}</Link>}
               />
               <SetupItem
                 done={data.pageSpeedKeyConfigured}
@@ -273,7 +279,7 @@ export default function Dashboard() {
         <Card
           icon="history"
           title="Recent audits"
-          actions={<a className="sb-btn sb-btn-ghost" href="/app/reports">All reports <Icon name="arrowRight" size={14} /></a>}
+          actions={<Link className="sb-btn sb-btn-ghost" to="/app/reports">All reports <Icon name="arrowRight" size={14} /></Link>}
         >
           {data.recent.length ? (
             <div className="sb-tableWrap">
@@ -292,7 +298,7 @@ export default function Dashboard() {
                       <td style={{ whiteSpace: "nowrap" }}><Time value={scan.createdAt} /></td>
                       <td>
                         {scan.auditRunId ? (
-                          <a href={`/app/scan?audit=${scan.auditRunId}`}><span className="sb-cellUrl">{scan.pageUrl}</span></a>
+                          <Link to={`/app/scan?audit=${scan.auditRunId}`}><span className="sb-cellUrl">{scan.pageUrl}</span></Link>
                         ) : (
                           <span className="sb-cellUrl">{scan.pageUrl}</span>
                         )}

@@ -1,5 +1,6 @@
-/** Handle of the app embed block (blocks/performance-pro-embed.liquid). */
-export const EMBED_BLOCK_HANDLE = "performance-pro-embed";
+import { EMBED_BLOCK_HANDLE } from "./embed-handle";
+
+export { EMBED_BLOCK_HANDLE };
 
 /**
  * Deep link that opens the live theme's editor with the SpeedBoost app embed

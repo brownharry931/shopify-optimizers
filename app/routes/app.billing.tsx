@@ -48,7 +48,8 @@ const styles = {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
-  const result = await getVerifiedSubscription(admin, session.shop);
+  // Always ask Shopify directly here so a plan change shows immediately.
+  const result = await getVerifiedSubscription(admin, session.shop, { live: true });
 
   return {
     shop: session.shop,
@@ -69,7 +70,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const intent = form.get("intent");
 
   if (intent === "start") {
-    const current = await getVerifiedSubscription(admin, session.shop);
+    const current = await getVerifiedSubscription(admin, session.shop, { live: true });
     if (!current.isVerified) {
       throw new Response(
         "Subscription verification is not configured; Shopify plan selection is disabled until Partner API settings are added.",

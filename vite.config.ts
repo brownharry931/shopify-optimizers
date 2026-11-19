@@ -2,6 +2,15 @@ import { reactRouter } from "@react-router/dev/vite";
 import { defineConfig, type UserConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 
+// Local development: load a gitignored .env so secrets such as
+// GOOGLE_PAGESPEED_API_KEY reach the dev server. Variables already set by
+// the shell, Codespaces secrets or the Shopify CLI are never overridden.
+try {
+  process.loadEnvFile?.(".env");
+} catch {
+  // No .env file — rely on the existing environment.
+}
+
 // Related: https://github.com/remix-run/remix/issues/2835#issuecomment-1144102176
 // Replace the HOST env var with SHOPIFY_APP_URL so that it doesn't break the Vite server.
 // The CLI will eventually stop passing in HOST,
