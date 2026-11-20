@@ -129,6 +129,11 @@ export default function BillingPage() {
   return (
     <s-page heading="Billing & Subscription">
       <main className={styles.billingPage}>
+        {"verificationError" in data && data.verificationError ? (
+          <p className="pp-error" role="alert">
+            Shopify subscription verification failed: {data.verificationError}
+          </p>
+        ) : null}
         <header className={styles.planHero}>
           <div className={styles.heroCopy}>
             <p className={styles.eyebrow}>Shopify-managed subscription</p>

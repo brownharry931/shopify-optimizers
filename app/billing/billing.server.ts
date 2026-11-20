@@ -290,7 +290,11 @@ export async function getVerifiedSubscription(
   options: { live?: boolean } = {},
 ) {
   if (options.live || !process.env.SHOPIFY_PARTNER_API_ACCESS_TOKEN?.trim()) {
-    return verifySubscriptionLive(admin, shop);
+    try {
+      return await verifySubscriptionLive(admin, shop);
+    } catch (error) {
+      return unverifiedOrRethrow(error, shop);
+    }
   }
   const stored = await prisma.subscription.findUnique({ where: { shop } });
   const cacheState = stored
@@ -304,8 +308,31 @@ export async function getVerifiedSubscription(
       console.warn("Live billing verification failed; using recent verified plan", { shop });
       return activeFromCache(stored, "grace");
     }
+    return unverifiedOrRethrow(error, shop);
+  }
+}
+
+/**
+ * Billing verification failures (our own 502/503 responses) become a locked,
+ * unverified state with a readable reason, so the page renders a banner
+ * instead of an error screen. Anything else — notably Shopify's own auth
+ * redirects, also thrown as Responses — is re-thrown untouched.
+ */
+async function unverifiedOrRethrow(error: unknown, shop: string) {
+  if (!(error instanceof Response) || (error.status !== 502 && error.status !== 503)) {
     throw error;
   }
+  const reason = (await error.text().catch(() => "")) || "Shopify subscription verification failed.";
+  console.error("Billing verification failed; paid features locked", { shop, status: error.status, reason });
+  return {
+    subscription: null,
+    subscriptionStatus: "UNKNOWN",
+    lastStatusEvent: null,
+    isVerified: false,
+    hasActiveSubscription: false,
+    verificationError: reason,
+    verification: "live" as const,
+  };
 }
 
 async function verifySubscriptionLive(admin: AdminApi, shop: string) {

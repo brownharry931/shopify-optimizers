@@ -8,6 +8,7 @@ import prisma from "../db.server";
 import { Icon, type IconName } from "../components/icons";
 import {
   Badge,
+  Banner,
   Card,
   EmptyState,
   GaugeLegend,
@@ -71,6 +72,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return {
     shop,
     hasActiveSubscription: planAccess.hasActiveSubscription,
+    billingError: "verificationError" in planAccess ? (planAccess.verificationError ?? null) : null,
     subscriptionStatus: planAccess.subscriptionStatus,
     planName: PLAN_NAME,
     planPrice: PLAN_PRICE,
@@ -150,6 +152,11 @@ export default function Dashboard() {
   return (
     <s-page heading="SpeedBoost">
       <main className="sb-app">
+        {data.billingError ? (
+          <Banner tone="critical" title="Your subscription couldn't be verified with Shopify">
+            {data.billingError} Paid features stay locked until verification succeeds.
+          </Banner>
+        ) : null}
         <PageHeader
           eyebrow={data.shop.name}
           title="Store speed overview"
