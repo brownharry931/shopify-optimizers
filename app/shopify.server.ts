@@ -31,7 +31,6 @@ const shopify = shopifyApp({
   // write_themes also requires Shopify's public-app theme API exemption before writes are available.
   // write_app_proxy is required because this app has an App Proxy configured.
   scopes: [
-    "read_products",
     "read_themes",
     "write_themes",
     "write_app_proxy",

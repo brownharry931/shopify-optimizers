@@ -421,7 +421,8 @@ async function verifySubscriptionLive(admin: AdminApi, shop: string) {
     ? new Date(remote.currentBillingCycle.endTime)
     : null;
   const trialEndsAt = remote.trialEndsAt ? new Date(remote.trialEndsAt) : null;
-  const isTestPlan = amount === 0 && process.env.NODE_ENV !== "production";
+  // Effective $0 = Shopify no-charge subscription (development store / private test plan).
+  const isTestPlan = amount === 0;
 
   const subscription = await prisma.subscription.upsert({
     where: { shop },

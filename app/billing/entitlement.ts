@@ -64,7 +64,13 @@ export function validateAppPricingEntitlement(
     amount += itemAmount;
   }
 
-  if (isProduction ? amount !== 10 : amount !== 10 && amount !== 0) {
+  // $10 is the public offer. Shopify App Pricing creates no-charge
+  // subscriptions (effective price $0) only for development stores — which is
+  // how Shopify's app reviewers test — or for private plans the Partner
+  // creates, so $0 is accepted in every environment. `isProduction` is kept
+  // for callers; it no longer changes which amounts are valid.
+  void isProduction;
+  if (amount !== 10 && amount !== 0) {
     throw new Error("The Shopify App Pricing subscription is not the SpeedBoost public offer.");
   }
 

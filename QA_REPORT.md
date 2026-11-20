@@ -81,3 +81,26 @@ Modified: `app/performance/scan.server.ts`, `app/performance/lighthouse-report.t
 3. Render: `DATABASE_URL` working, `GOOGLE_PAGESPEED_API_KEY`, `SHOPIFY_PARTNER_API_ACCESS_TOKEN` set.
 4. Remove the dev store password (or test on a public store) and run before/after audits.
 5. `npm run deploy` to publish the updated app embed, then push the branch for Render.
+
+## 7. App Store compliance pass (2026-11-20)
+
+Verified against shopify.dev (App Store requirements, App Pricing, network access changelog of 19 Nov 2026).
+
+| Requirement | Status | Notes |
+|---|---|---|
+| Embedded auth with session tokens, no 3rd-party cookies | PASS | `@shopify/shopify-app-react-router`, `authenticate.admin` on every route |
+| Latest App Bridge | PASS | Loaded by the framework's `AppProvider` |
+| GraphQL Admin API only, API 2026-10 | PASS | No REST calls in `app/` |
+| Expiring offline access tokens | PASS | `future.expiringOfflineAccessTokens: true` |
+| Minimum scopes | FIXED | Was 9 scopes; now `read_themes,write_themes,write_app_proxy` (the code uses nothing else) |
+| `[network_access]` (required from 1 Dec 2026) | FIXED | `allowed_sources = []`; storefront contacts no external host. `shopify app config validate` passes |
+| Compliance webhooks (3 topics) | FIXED earlier | `/webhooks/compliance`, HMAC verified by `authenticate.webhook` |
+| Billing via Shopify App Pricing + Partner API | PASS | Matches docs; App Pricing sends no billing webhooks after 28 Apr 2026 |
+| Reviewer/dev-store $0 no-charge plan | FIXED | Production rejected effective-$0 subscriptions → reviewers would be locked out |
+| Theme changes only through theme app extensions (req. 5.1.1) | FAIL / decision | Theme optimizer writes files (unpublished themes only) with `write_themes`; see decision below |
+| Lighthouse impact ≤ 10 points | MANUAL REQUIRED | Embed is small and inert by default; must be measured on a public store |
+| Privacy policy URL | FIXED | Public page at `/privacy` (set `SUPPORT_EMAIL`) |
+| Terms, icon, screenshots, screencast, support email | MANUAL REQUIRED | See `shopify-app-store-submission/assets-checklist.md` |
+| Consistent app name | FAIL | "SpeedBoost" (toml/listing) vs "Performance Pro" (admin title, landing page) |
+| Dependency vulnerabilities | FIXED / accepted | `npm audit fix`: production 9 → 6; remaining are in Prisma CLI config (`effect`) and route-file matching (`minimatch`), used at build/migrate time only; fixes require breaking downgrades |
+| SQL injection / XSS / secret exposure | PASS | Parameterized tagged-template SQL only; no raw HTML injection; only a boolean about the API key reaches the browser |

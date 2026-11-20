@@ -36,7 +36,9 @@ test("accepts only the $10 public offer and development test amount", () => {
   assert.equal(validateAppPricingEntitlement(subscription("10"), true).amount, 10);
   assert.equal(validateAppPricingEntitlement(subscription("10"), false).amount, 10);
   assert.equal(validateAppPricingEntitlement(subscription("0"), false).amount, 0);
-  assert.throws(() => validateAppPricingEntitlement(subscription("0"), true), /public offer/);
+  // Development stores (and Shopify's app reviewers) get no-charge $0 subscriptions.
+  assert.equal(validateAppPricingEntitlement(subscription("0"), true).amount, 0);
+  assert.throws(() => validateAppPricingEntitlement(subscription("5"), true), /public offer/);
   assert.throws(() => validateAppPricingEntitlement(subscription("25"), false), /public offer/);
 });
 
