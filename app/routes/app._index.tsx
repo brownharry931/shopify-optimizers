@@ -140,7 +140,8 @@ function SetupItem({
 const QUICK_ACTIONS: Array<{ href: string; icon: IconName; title: string; text: string }> = [
   { href: "/app/scan", icon: "gauge", title: "Speed audit", text: "Lighthouse report for any page, on mobile and desktop." },
   { href: "/app/speed", icon: "bolt", title: "Speed boosters", text: "Delay scripts, instant page loads, LCP preload, fonts and more." },
-  { href: "/app/optimize", icon: "code", title: "Theme audit", text: "Find unminified files, blocking scripts and unlazy images, with copy-paste fixes." },
+  { href: "/app/optimize", icon: "code", title: "Theme audit", text: "See what in your theme slows it down, and which boosters fix it with no code." },
+  { href: "/app/images", icon: "image", title: "Image compressor", text: "Shrink store images without visible quality loss, with before/after preview and restore." },
   { href: "/app/reports", icon: "chart", title: "Reports", text: "Score trends and before/after comparisons over time." },
 ];
 
@@ -244,7 +245,7 @@ export default function Dashboard() {
                       embedIsActive(status) ? undefined : status.theme === "unknown" ? (
                         embedBadge(status)
                       ) : (
-                        <a className="sb-btn sb-btn-secondary" href={data.embedUrl} target="_top">Enable</a>
+                        <Link className="sb-btn sb-btn-secondary" to="/app/setup">Set up</Link>
                       )
                     }
                   />

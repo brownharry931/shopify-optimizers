@@ -17,7 +17,7 @@ const guidanceByAuditId: Record<string, FindingGuidance> = {
     nextStep:
       "Treat this as a page-and-state-specific clue, not proof that a stylesheet is safe to delete. Check menus, variants, cart, responsive layouts, and app blocks before removal.",
     automation:
-      "Theme audit measures how much each stylesheet shrinks when minified and gives a copy-ready minified file. Unused CSS is never removed automatically; one Lighthouse page cannot prove a rule is unused everywhere.",
+      "Theme audit measures how much each stylesheet would shrink when minified, as a report for your theme developer. Unused CSS is never removed automatically; one Lighthouse page cannot prove a rule is unused everywhere.",
   },
   "unused-javascript": {
     area: "JavaScript",
@@ -31,7 +31,7 @@ const guidanceByAuditId: Record<string, FindingGuidance> = {
     nextStep:
       "Inspect the image candidates, their rendered dimensions, and whether each is above the fold before choosing a responsive Shopify CDN variant.",
     automation:
-      "The image section below compares today's bytes with a right-sized Shopify CDN version. Theme audit lists <img> tags without lazy loading or dimensions, with copy-paste fixes.",
+      "The image section below compares today's bytes with a right-sized Shopify CDN version. The Image compressor shrinks the files themselves with no theme changes, and Theme audit reports images your theme loads too early.",
   },
   "modern-image-formats": {
     area: "Images",
@@ -59,7 +59,7 @@ const guidanceByAuditId: Record<string, FindingGuidance> = {
     nextStep:
       "Check whether the LCP image is discoverable in the initial document and whether lazy loading or script insertion delays it.",
     automation:
-      "On product pages, Speed boosters → Preload LCP image fetches the featured image from the <head> at high priority. Elsewhere, make sure this image is not lazy-loaded and add `fetchpriority: 'high'` to its `image_tag`.",
+      "On product pages, Speed boosters → Preload LCP image fetches the featured image from the <head> at high priority. Elsewhere, Theme audit reports whether your theme lazy-loads this image, as a finding for your theme developer.",
   },
   "font-display": {
     area: "Fonts",
@@ -125,7 +125,7 @@ const extraGuidance: Record<string, FindingGuidance> = {
   "unminified-javascript": {
     area: "JavaScript",
     nextStep: "Minify the listed theme scripts. App-hosted files must be fixed by the app vendor.",
-    automation: "Theme audit measures each theme script's minified size and provides a copy-ready minified file with step-by-step instructions.",
+    automation: "Theme audit measures each theme script's minified size and reports it for your theme developer. SpeedBoost never changes theme files.",
   },
   "network-dependency-tree-insight": {
     area: "Request chains",

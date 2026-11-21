@@ -23,9 +23,11 @@ export default function App() {
     <AppProvider apiKey={apiKey}>
       <s-app-nav>
         <s-link href="/app">Dashboard</s-link>
+        <s-link href="/app/setup">Setup guide</s-link>
         <s-link href="/app/scan">Speed audit</s-link>
         <s-link href="/app/speed">Speed boosters</s-link>
         <s-link href="/app/optimize">Theme audit</s-link>
+        <s-link href="/app/images">Image compressor</s-link>
         <s-link href="/app/reports">Reports</s-link>
         <s-link href="/app/billing">Billing</s-link>
       </s-app-nav>

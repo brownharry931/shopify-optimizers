@@ -143,3 +143,28 @@ model PerformanceScan {
   @@index([shop, status])
   @@index([auditRunId, strategy])
 }
+
+// Image compressor history. `backup` holds the original file so a
+// compression can be restored; it is cleared after a restore and deleted
+// with all other shop data on uninstall / shop redact.
+model ImageOptimization {
+  id             String    @id @default(cuid())
+  shop           String
+  fileId         String
+  filename       String
+  mimeType       String
+  originalBytes  Int
+  optimizedBytes Int
+  width          Int
+  height         Int
+  quality        String
+  psnr           Float?
+  status         String    @default("APPLIED")
+  backup         Bytes?
+  error          String?
+  createdAt      DateTime  @default(now())
+  restoredAt     DateTime?
+
+  @@index([shop, createdAt])
+  @@index([shop, fileId])
+}

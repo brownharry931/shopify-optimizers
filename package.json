@@ -17,7 +17,7 @@
     "prisma": "prisma",
     "vite": "vite",
     "typecheck": "react-router typegen && tsc --noEmit",
-    "test": "tsx --test app/*.test.ts app/performance/*.test.ts app/optimization/*.test.ts app/billing/*.test.ts"
+    "test": "tsx --test app/*.test.ts app/performance/*.test.ts app/optimization/*.test.ts app/billing/*.test.ts app/images/*.test.ts"
   },
   "type": "module",
   "engines": {
@@ -39,6 +39,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router": "7.18.2",
+    "sharp": "^0.34.3",
     "vite-tsconfig-paths": "^6.0.4"
   },
   "devDependencies": {

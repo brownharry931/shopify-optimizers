@@ -1,6 +1,6 @@
 import type { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { embedStateFromSettingsData, type EmbedStatus } from "./embed-status";
+import { embedStateFromSettingsData, type EmbedState, type EmbedStatus } from "./embed-status";
 
 export type { EmbedStatus };
 
@@ -82,4 +82,54 @@ export async function getEmbedStatus(admin: AdminApi, shop: string): Promise<Emb
     lastSeenAt: heartbeat?.lastSeenAt.toISOString() ?? null,
     error: themeResult.ok ? null : "The live theme's settings could not be read right now.",
   };
+}
+
+export type ThemeEmbedRow = {
+  id: string;
+  name: string;
+  role: string;
+  state: EmbedState | "unknown";
+};
+
+/** Embed state for every theme in the store (for the setup guide). */
+export async function getEmbedStateByTheme(admin: AdminApi): Promise<ThemeEmbedRow[]> {
+  const response = await admin.graphql(`#graphql
+    query SpeedBoostEmbedByTheme {
+      themes(first: 20) {
+        nodes {
+          id
+          name
+          role
+          files(filenames: ["config/settings_data.json"], first: 1) {
+            nodes { body { ... on OnlineStoreThemeFileBodyText { content } } }
+          }
+        }
+      }
+    }`);
+  const payload = (await response.json()) as {
+    data?: {
+      themes?: {
+        nodes: Array<{ id: string; name: string; role: string; files?: { nodes: Array<{ body?: { content?: string } }> } }>;
+      };
+    };
+    errors?: Array<{ message?: string }>;
+  };
+  if (payload.errors?.length || !payload.data?.themes) {
+    throw new Error(payload.errors?.[0]?.message || "Themes could not be read");
+  }
+  return payload.data.themes.nodes
+    .filter((theme) => theme.role === "MAIN" || theme.role === "UNPUBLISHED" || theme.role === "DEVELOPMENT")
+    .map((theme) => {
+      const content = theme.files?.nodes[0]?.body?.content;
+      let state: EmbedState | "unknown" = "not-added";
+      if (typeof content === "string") {
+        try {
+          state = embedStateFromSettingsData(content);
+        } catch {
+          state = "unknown";
+        }
+      }
+      return { id: theme.id, name: theme.name, role: theme.role, state };
+    })
+    .sort((a, b) => Number(b.role === "MAIN") - Number(a.role === "MAIN"));
 }

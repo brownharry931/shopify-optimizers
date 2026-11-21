@@ -158,15 +158,3 @@ export async function runThemeAudit(admin: AdminApi, themeId: string) {
     durationMs: Date.now() - startedAt,
   };
 }
-
-/** Minify one theme asset on demand so the merchant can copy it. Read-only. */
-export async function minifiedCopy(admin: AdminApi, themeId: string, filename: string) {
-  if (!/^assets\/[^/]+\.(css|js)$/i.test(filename) || filename.includes("..")) {
-    throw new Error("Only CSS and JavaScript files in the theme's assets folder can be minified.");
-  }
-  const bodies = await readFileBodies(admin, themeId, [filename]);
-  const source = bodies.get(filename);
-  if (!source) throw new Error("That file couldn't be read from the theme.");
-  const result = /\.css$/i.test(filename) ? minifyCssAsset(source) : await minifyJavaScriptAsset(source);
-  return { filename, code: result.code, sourceBytes: result.sourceBytes, minifiedBytes: result.outputBytes };
-}

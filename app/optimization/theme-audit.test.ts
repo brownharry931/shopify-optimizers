@@ -125,3 +125,25 @@ test("Liquid comparisons inside a tag don't end the tag early", () => {
   const card = `<img srcset="{%- if img.width > 165 -%}a 165w{%- endif -%}" loading="lazy" width="1" height="1">`;
   assert.deepEqual(auditTheme([{ filename: "sections/card.liquid", size: card.length, content: card }]), []);
 });
+
+test("App Store 5.1.1: merchant steps never ask to edit theme code; boosters are offered where they apply", () => {
+  const findings = auditTheme(
+    [
+      { filename: "layout/theme.liquid", size: layout.length, content: layout },
+      { filename: "sections/gallery.liquid", size: section.length, content: section },
+      { filename: "assets/banner.png", size: 700 * 1024 },
+    ],
+    [{ filename: "assets/global.js", sourceBytes: 60_000, minifiedBytes: 30_000 }],
+  );
+  assert.ok(findings.length > 0);
+  for (const finding of findings) {
+    assert.ok(finding.steps.length > 0, finding.id);
+    for (const step of finding.steps) {
+      assert.doesNotMatch(step, /edit code|paste|code editor|replace the|add the line/i, `${finding.id}: ${step}`);
+    }
+  }
+  assert.equal(findings.find((finding) => finding.id.startsWith("iframe"))?.resolution.type, "booster");
+  assert.equal(findings.find((finding) => finding.id.startsWith("preconnect"))?.resolution.type, "booster");
+  assert.equal(findings.find((finding) => finding.id.startsWith("large-image"))?.resolution.type, "settings");
+  assert.equal(findings.find((finding) => finding.id.startsWith("blocking-script"))?.resolution.type, "developer");
+});

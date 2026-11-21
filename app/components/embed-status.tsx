@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { Await } from "react-router";
+import { Await, Link } from "react-router";
 import type { EmbedStatus } from "../optimization/embed-status";
 import { Badge, Banner, Time } from "./ui";
 
@@ -54,7 +54,8 @@ export function EmbedBanner({ status, embedUrl }: { status: EmbedStatus; embedUr
   return (
     <Banner tone="warning" title="Turn on the SpeedBoost app embed to apply boosters">
       Boosters run from the app embed in your live theme ({status.themeName ?? "published theme"}).{" "}
-      <a href={embedUrl} target="_top">Open the theme editor</a>, switch SpeedBoost on under App embeds and click
+      Follow the <Link to="/app/setup">setup guide</Link> (about a minute), or{" "}
+      <a href={embedUrl} target="_top">open the theme editor</a> directly, switch SpeedBoost on under App embeds and click
       Save. Changes in a theme that isn&apos;t published, or that weren&apos;t saved, don&apos;t count.
     </Banner>
   );

@@ -108,7 +108,7 @@ const GROUPS: Array<{ id: string; icon: IconName; title: string; subtitle: strin
         caution: "Test swipe galleries on a phone: a slider that blocks page scrolling while swiping may scroll the page as well.",
       },
     ],
-    links: [{ href: "/app/optimize", label: "Minify recommendations", text: "See which theme CSS and JavaScript files can be smaller, with a copy-ready minified version and steps." }],
+    links: [{ href: "/app/optimize", label: "Minify recommendations", text: "See which theme CSS and JavaScript files could be smaller, measured from your real theme." }],
   },
   {
     id: "media",

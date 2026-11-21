@@ -447,9 +447,9 @@ function ImageSavings({ report }: { report: LighthouseReport }) {
         </div>
       ) : null}
       <p className="sb-footnote" style={{ marginTop: 12 }}>
-        To serve the smaller version, the theme must request it: check <Link to="/app/optimize">Theme audit</Link> for
-        images without lazy loading, and ask your theme developer to use responsive <code>image_url</code> widths with a
-        matching <code>srcset</code>. Re-run the audit afterwards to confirm the gain.
+        To make the files themselves smaller, use the <Link to="/app/images">Image compressor</Link>. It replaces
+        images in place with no theme changes. <Link to="/app/optimize">Theme audit</Link> reports images your theme
+        loads too early. Re-run the audit afterwards to confirm the gain.
       </p>
     </Card>
   );

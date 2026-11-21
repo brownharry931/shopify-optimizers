@@ -12,9 +12,15 @@
    embeds*), click **Save**, and open the storefront. Turning it off and
    saving removes the behaviour on the next page view.
 5. **Theme audit**: choose a theme and click **Run theme audit**. The app
-   reads the theme (read_themes only) and lists recommendations with
-   copy-paste fixes. It never writes theme files.
-6. **Reports** lists completed audits with trends.
+   reads the theme (read_themes only) and lists findings; where a Speed
+   booster solves a finding it links to it. It never writes theme files or
+   asks merchants to edit code.
+6. **Image compressor**: open it, click **Preview** on an image, drag the
+   slider to compare, then **Use compressed image on my store**. Open
+   **Compression history** and click **Restore original** to undo.
+7. **Setup guide**: pick a theme and use **Open theme editor** to switch
+   the app embed on (deep link with `activateAppId`).
+8. **Reports** lists completed audits with trends.
 
 Uninstalling deletes the app's stored data. The app embed stops running
 when the app is uninstalled.

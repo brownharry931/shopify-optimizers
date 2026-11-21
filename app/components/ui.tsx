@@ -383,11 +383,13 @@ export function CodeBlock({
   label,
   tone = "dark",
   maxHeight = 220,
+  copyable = true,
 }: {
   code: string;
   label?: string;
   tone?: "dark" | "muted";
   maxHeight?: number;
+  copyable?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const preId = useId();
@@ -411,10 +413,12 @@ export function CodeBlock({
     <div className={`sb-codeBlock sb-codeBlock-${tone}`}>
       <div className="sb-codeHead">
         <span>{label}</span>
-        <button type="button" className="sb-btn sb-btn-ghost sb-codeCopy" onClick={copy}>
-          <Icon name={copied ? "check" : "stack"} size={14} />
-          {copied ? "Copied" : "Copy"}
-        </button>
+        {copyable ? (
+          <button type="button" className="sb-btn sb-btn-ghost sb-codeCopy" onClick={copy}>
+            <Icon name={copied ? "check" : "stack"} size={14} />
+            {copied ? "Copied" : "Copy"}
+          </button>
+        ) : null}
       </div>
       <pre style={{ maxHeight }} id={preId}>{code}</pre>
     </div>

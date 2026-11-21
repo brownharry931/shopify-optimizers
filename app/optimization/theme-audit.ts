@@ -31,14 +31,78 @@ export type Finding = {
   line: number | null;
   /** Code as it is today (trimmed), when relevant. */
   current: string | null;
-  /** Ready-to-paste replacement, when one exists. */
+  /** Technical detail for the theme developer: the suggested change. */
   fix: string | null;
   why: string;
+  /** What the merchant can do — never “edit your theme code” (App Store 5.1.1). */
   steps: string[];
+  resolution: Resolution;
   bytes?: { before: number; after: number };
 };
 
+export type Resolution =
+  | {
+      type: "booster";
+      booster: "lazyMedia" | "fontOptimization";
+      label: string;
+    }
+  | { type: "settings" }
+  | { type: "developer" };
+
+// Placeholder until resolutionFor() assigns the real resolution and steps.
+const UNRESOLVED: Resolution = { type: "developer" };
+
 const SEVERITY_ORDER: Record<Severity, number> = { high: 0, medium: 1, low: 2 };
+
+/**
+ * SpeedBoost never asks merchants to edit theme code. Each finding is either
+ * solved by a Speed booster (theme app extension), by a normal admin setting,
+ * or reported as a diagnostic for the theme's developer or provider.
+ */
+function resolutionFor(
+  finding: Finding,
+): Pick<Finding, "resolution" | "steps"> {
+  if (finding.id.startsWith("iframe:")) {
+    const label = "Lazy-load videos & embeds";
+    return {
+      resolution: { type: "booster", booster: "lazyMedia", label },
+      steps: [
+        "Open Speed boosters.",
+        `Switch on “${label}” and click Save.`,
+        "Run a Speed audit to confirm the improvement.",
+      ],
+    };
+  }
+  if (finding.id.startsWith("preconnect:")) {
+    const label = "Optimize fonts";
+    return {
+      resolution: { type: "booster", booster: "fontOptimization", label },
+      steps: [
+        "Open Speed boosters.",
+        `Switch on “${label}” and click Save.`,
+        "Run a Speed audit to confirm the improvement.",
+      ],
+    };
+  }
+  if (finding.id.startsWith("large-image:")) {
+    return {
+      resolution: { type: "settings" },
+      steps: [
+        "Upload the image in Content → Files (or use the Image compressor to shrink it).",
+        "In the theme editor (Online Store → Themes → Customize), choose that image in the section's image setting.",
+        "Shopify then serves the right size and a modern format to every visitor automatically.",
+      ],
+    };
+  }
+  return {
+    resolution: { type: "developer" },
+    steps: [
+      "This is part of your theme's own code, which SpeedBoost never changes.",
+      "Check whether your theme has an update (Online Store → Themes). Newer theme versions often include fixes like this.",
+      "Otherwise, share this finding with your theme developer or the theme's provider. The technical detail below tells them exactly what to look at.",
+    ],
+  };
+}
 
 export const CATEGORY_LABEL: Record<Category, string> = {
   javascript: "JavaScript",
@@ -47,13 +111,6 @@ export const CATEGORY_LABEL: Record<Category, string> = {
   fonts: "Fonts",
   cleanup: "Clean-up",
 };
-
-const EDIT_CODE_STEP =
-  "In Shopify admin go to Online Store → Themes, click ⋯ next to this theme and choose Edit code (or use “Open in code editor” here).";
-const DUPLICATE_STEP =
-  "Before editing, make a backup: Online Store → Themes → ⋯ → Duplicate.";
-const CHECK_STEP =
-  "Save, open your store and check menus, product options, add to cart and the cart drawer still work. Then run a new Speed audit to measure the change.";
 
 function lineOf(content: string, index: number) {
   let line = 1;
@@ -82,7 +139,8 @@ function ignoredRanges(content: string) {
       ranges.push([match.index ?? 0, (match.index ?? 0) + match[0].length]);
     }
   }
-  return (index: number) => ranges.some(([start, end]) => index >= start && index < end);
+  return (index: number) =>
+    ranges.some(([start, end]) => index >= start && index < end);
 }
 
 /**
@@ -99,8 +157,14 @@ export function findTags(content: string, name: string) {
     let quote: string | null = null;
     while (i < content.length) {
       const char = content[i];
-      if (!quote && (content.startsWith("{{", i) || content.startsWith("{%", i))) {
-        const close = content.indexOf(content[i + 1] === "{" ? "}}" : "%}", i + 2);
+      if (
+        !quote &&
+        (content.startsWith("{{", i) || content.startsWith("{%", i))
+      ) {
+        const close = content.indexOf(
+          content[i + 1] === "{" ? "}}" : "%}",
+          i + 2,
+        );
         if (close === -1) break;
         i = close + 2;
         continue;
@@ -145,7 +209,8 @@ function renderBlockingScripts(file: ThemeFileInput): Finding[] {
     if (!/\ssrc\s*=/i.test(plain)) continue; // inline scripts can't be deferred
     if (attr(tag, "defer") || attr(tag, "async")) continue;
     if (/type\s*=\s*["']?module/i.test(tag)) continue; // modules are deferred by default
-    if (/type\s*=\s*["']?(application\/(ld\+)?json|text\/template)/i.test(tag)) continue;
+    if (/type\s*=\s*["']?(application\/(ld\+)?json|text\/template)/i.test(tag))
+      continue;
     findings.push({
       id: `blocking-script:${file.filename}:${index}`,
       severity: "high",
@@ -156,17 +221,16 @@ function renderBlockingScripts(file: ThemeFileInput): Finding[] {
       current: clip(tag),
       fix: tag.replace(/<script\b/i, "<script defer"),
       why: "Scripts in the page <head> without “defer” make the browser stop drawing your store until the file has downloaded and run. Adding “defer” lets the page appear first and runs the script right after — usually the single biggest gain for First Contentful Paint.",
-      steps: [
-        DUPLICATE_STEP,
-        EDIT_CODE_STEP,
-        `Open ${file.filename} and go to line ${lineOf(content, index)}.`,
-        "Replace the line shown under “Current code” with the “Fixed code”.",
-        CHECK_STEP,
-      ],
+      steps: [],
+      resolution: UNRESOLVED,
     });
   }
 
-  for (const match of content.slice(0, headEnd).matchAll(/\{\{-?\s*(['"][^'"]+\.js['"])\s*\|\s*asset_url\s*\|\s*script_tag\s*-?\}\}/gi)) {
+  for (const match of content
+    .slice(0, headEnd)
+    .matchAll(
+      /\{\{-?\s*(['"][^'"]+\.js['"])\s*\|\s*asset_url\s*\|\s*script_tag\s*-?\}\}/gi,
+    )) {
     const index = match.index ?? 0;
     if (ignored(index)) continue;
     findings.push({
@@ -179,13 +243,8 @@ function renderBlockingScripts(file: ThemeFileInput): Finding[] {
       current: clip(match[0]),
       fix: `<script src="{{ ${match[1]} | asset_url }}" defer="defer"></script>`,
       why: "Shopify's script_tag filter outputs a script without “defer”, so the browser waits for it before showing the page.",
-      steps: [
-        DUPLICATE_STEP,
-        EDIT_CODE_STEP,
-        `Open ${file.filename}, line ${lineOf(content, index)}.`,
-        "Replace the current code with the fixed code.",
-        CHECK_STEP,
-      ],
+      steps: [],
+      resolution: UNRESOLVED,
     });
   }
   return findings;
@@ -201,11 +260,13 @@ function templateRanges(content: string) {
   for (const match of content.matchAll(/<template\b[\s\S]*?<\/template>/gi)) {
     ranges.push([match.index ?? 0, (match.index ?? 0) + match[0].length]);
   }
-  return (index: number) => ranges.some(([start, end]) => index >= start && index < end);
+  return (index: number) =>
+    ranges.some(([start, end]) => index >= start && index < end);
 }
 
 // Sections that normally sit at the top of a page: never suggest lazy loading there.
-const ABOVE_THE_FOLD = /(hero|banner|slideshow|main-product|featured-product|header|announcement)/i;
+const ABOVE_THE_FOLD =
+  /(hero|banner|slideshow|main-product|featured-product|header|announcement)/i;
 
 function mediaFindings(file: ThemeFileInput): Finding[] {
   const content = file.content ?? "";
@@ -219,44 +280,41 @@ function mediaFindings(file: ThemeFileInput): Finding[] {
     if (ignored(index)) continue;
     // Attributes set inside Liquid conditionals still count as present.
     const attrs = tag;
-    const missingLazy = !likelyAboveFold && !attr(attrs, "loading") && !attr(attrs, "fetchpriority");
+    const missingLazy =
+      !likelyAboveFold &&
+      !attr(attrs, "loading") &&
+      !attr(attrs, "fetchpriority");
     const missingSize = !attr(attrs, "width") || !attr(attrs, "height");
     if (!missingLazy && !missingSize) continue;
     let fixed = tag;
-    if (missingLazy) fixed = fixed.replace(/<img\b/i, '<img loading="lazy" decoding="async"');
+    if (missingLazy)
+      fixed = fixed.replace(/<img\b/i, '<img loading="lazy" decoding="async"');
     findings.push({
       id: `img:${file.filename}:${index}`,
       severity: "medium",
       category: "images",
-      title: missingLazy && missingSize
-        ? "An image loads immediately and has no size set"
-        : missingLazy
-          ? "An image loads immediately, even when it is far down the page"
-          : "An image has no width and height, so the page can jump",
+      title:
+        missingLazy && missingSize
+          ? "An image loads immediately and has no size set"
+          : missingLazy
+            ? "An image loads immediately, even when it is far down the page"
+            : "An image has no width and height, so the page can jump",
       file: file.filename,
       line: lineOf(content, index),
       current: clip(tag),
       fix: missingLazy ? fixed : null,
       why: [
         missingLazy
-          ? "Without loading=\"lazy\" the browser downloads this image straight away, competing with the images visitors actually see first."
+          ? 'Without loading="lazy" the browser downloads this image straight away, competing with the images visitors actually see first.'
           : "",
         missingSize
           ? "Without width and height the browser can't reserve space, so content moves when the image arrives (Cumulative Layout Shift)."
           : "",
-      ].filter(Boolean).join(" "),
-      steps: [
-        DUPLICATE_STEP,
-        EDIT_CODE_STEP,
-        `Open ${file.filename}, line ${lineOf(content, index)}.`,
-        missingLazy
-          ? "Only if this image is NOT at the top of the page (not the hero or main product photo): replace it with the fixed code. Leave the first, most visible image as it is."
-          : "Add width=\"…\" and height=\"…\" with the image's real pixel size (or use Shopify's image_tag filter, which adds them).",
-        missingSize && missingLazy
-          ? "Also add width and height attributes with the image's real pixel size."
-          : CHECK_STEP,
-        ...(missingSize && missingLazy ? [CHECK_STEP] : []),
-      ],
+      ]
+        .filter(Boolean)
+        .join(" "),
+      steps: [],
+      resolution: UNRESOLVED,
     });
   }
 
@@ -271,8 +329,9 @@ function mediaFindings(file: ThemeFileInput): Finding[] {
       line: lineOf(content, index),
       current: clip(tag),
       fix: tag.replace(/<iframe\b/i, '<iframe loading="lazy"'),
-      why: "Embeds such as YouTube or Google Maps download a lot of code. With loading=\"lazy\" they wait until the visitor scrolls near them. (Speed boosters → Lazy-load videos & embeds also handles this without code changes.)",
-      steps: [DUPLICATE_STEP, EDIT_CODE_STEP, `Open ${file.filename}, line ${lineOf(content, index)}.`, "Replace the current code with the fixed code.", CHECK_STEP],
+      why: 'Embeds such as YouTube or Google Maps download a lot of code. With loading="lazy" they wait until the visitor scrolls near them. (Speed boosters → Lazy-load videos & embeds also handles this without code changes.)',
+      steps: [],
+      resolution: UNRESOLVED,
     });
   }
   return findings;
@@ -280,10 +339,15 @@ function mediaFindings(file: ThemeFileInput): Finding[] {
 
 function largeAssetImages(files: ThemeFileInput[]): Finding[] {
   return files
-    .filter((file) => /^assets\/.+\.(png|jpe?g|gif)$/i.test(file.filename) && file.size > 200 * 1024)
+    .filter(
+      (file) =>
+        /^assets\/.+\.(png|jpe?g|gif)$/i.test(file.filename) &&
+        file.size > 200 * 1024,
+    )
     .map((file) => ({
       id: `large-image:${file.filename}`,
-      severity: file.size > 500 * 1024 ? ("high" as const) : ("medium" as const),
+      severity:
+        file.size > 500 * 1024 ? ("high" as const) : ("medium" as const),
       category: "images" as const,
       title: "A large image is stored in the theme's files",
       file: file.filename,
@@ -291,11 +355,8 @@ function largeAssetImages(files: ThemeFileInput[]): Finding[] {
       current: null,
       fix: null,
       why: `This file is ${(file.size / 1024).toFixed(0)} KB. Images in theme assets are served as-is; images uploaded to Shopify (Content → Files or in section settings) are automatically resized and converted to modern formats like WebP and AVIF.`,
-      steps: [
-        "Upload the image in Content → Files (or pick it in the section's image setting in the theme editor) instead of using the theme asset.",
-        "Where the theme code uses it, prefer an image setting rendered with image_url and image_tag, which serve the right size for each screen.",
-        CHECK_STEP,
-      ],
+      steps: [],
+      resolution: UNRESOLVED,
     }));
 }
 
@@ -308,7 +369,9 @@ function fontFindings(file: ThemeFileInput): Finding[] {
   const ignored = ignoredRanges(content);
   const findings: Finding[] = [];
 
-  for (const match of content.matchAll(/\{\{-?\s*([\w.[\]'"]+)\s*\|\s*font_face(\s*-?\}\}|\s*:[^}]*\}\})/gi)) {
+  for (const match of content.matchAll(
+    /\{\{-?\s*([\w.[\]'"]+)\s*\|\s*font_face(\s*-?\}\}|\s*:[^}]*\}\})/gi,
+  )) {
     const index = match.index ?? 0;
     if (ignored(index) || /font_display/i.test(match[0])) continue;
     findings.push({
@@ -321,7 +384,8 @@ function fontFindings(file: ThemeFileInput): Finding[] {
       current: clip(match[0]),
       fix: `{{ ${match[1]} | font_face: font_display: 'swap' }}`,
       why: "Without font-display: swap, browsers hide text until the custom font arrives. With swap, text shows at once in a fallback font and switches when the font is ready.",
-      steps: [DUPLICATE_STEP, EDIT_CODE_STEP, `Open ${file.filename}, line ${lineOf(content, index)}.`, "Replace the current code with the fixed code.", CHECK_STEP],
+      steps: [],
+      resolution: UNRESOLVED,
     });
   }
 
@@ -338,7 +402,8 @@ function fontFindings(file: ThemeFileInput): Finding[] {
       current: clip(match[0]),
       fix: match[0].replace(/\{/, "{\n  font-display: swap;"),
       why: "This @font-face rule has no font-display, so text may stay invisible while the font loads.",
-      steps: [DUPLICATE_STEP, EDIT_CODE_STEP, `Open ${file.filename}, line ${lineOf(content, index)}.`, "Add the line font-display: swap; inside the @font-face block, as in the fixed code.", CHECK_STEP],
+      steps: [],
+      resolution: UNRESOLVED,
     });
   }
   return findings;
@@ -346,8 +411,14 @@ function fontFindings(file: ThemeFileInput): Finding[] {
 
 function preconnectFinding(layout: ThemeFileInput): Finding[] {
   const content = layout.content ?? "";
-  const usesShopifyFonts = /font_url|font_face|fonts\.shopifycdn\.com/i.test(content);
-  if (!usesShopifyFonts || /preconnect[^>]*fonts\.shopifycdn\.com/i.test(content)) return [];
+  const usesShopifyFonts = /font_url|font_face|fonts\.shopifycdn\.com/i.test(
+    content,
+  );
+  if (
+    !usesShopifyFonts ||
+    /preconnect[^>]*fonts\.shopifycdn\.com/i.test(content)
+  )
+    return [];
   const headStart = content.search(/<head[^>]*>/i);
   return [
     {
@@ -360,7 +431,8 @@ function preconnectFinding(layout: ThemeFileInput): Finding[] {
       current: null,
       fix: '<link rel="preconnect" href="https://fonts.shopifycdn.com" crossorigin>',
       why: "Your theme uses Shopify fonts. A preconnect hint opens the connection to the font server early, so fonts arrive sooner. (Speed boosters → Optimize fonts adds this automatically without code changes.)",
-      steps: [EDIT_CODE_STEP, `Open ${layout.filename} and paste the fixed code on the line right after <head>.`, CHECK_STEP],
+      steps: [],
+      resolution: UNRESOLVED,
     },
   ];
 }
@@ -389,20 +461,16 @@ function minifyFindings(measurements: MinifyMeasurement[]): Finding[] {
         fix: null,
         bytes: { before: item.sourceBytes, after: item.minifiedBytes },
         why: `This file contains spaces, comments and long names browsers don't need. A minified copy does exactly the same thing in ${(item.minifiedBytes / 1024).toFixed(1)} KB instead of ${(item.sourceBytes / 1024).toFixed(1)} KB. Shopify compresses files during transfer, so the real download saving is smaller than this, but the browser also has less code to read.`,
-        steps: [
-          DUPLICATE_STEP,
-          "Click “Show minified file” below and then “Copy”.",
-          EDIT_CODE_STEP,
-          `Open ${item.filename}, select all the code (Ctrl/Cmd + A) and paste the minified version over it.`,
-          CHECK_STEP,
-          "If anything breaks, restore the duplicate theme or use the file's “Older versions” menu in the code editor.",
-        ],
+        steps: [],
+        resolution: UNRESOLVED,
       };
     });
 }
 
 function unusedSnippets(files: ThemeFileInput[]): Finding[] {
-  const snippets = files.filter((file) => /^snippets\/[^/]+\.liquid$/.test(file.filename));
+  const snippets = files.filter((file) =>
+    /^snippets\/[^/]+\.liquid$/.test(file.filename),
+  );
   const corpus = files
     .filter((file) => /\.(liquid|json)$/i.test(file.filename) && file.content)
     .map((file) => file.content)
@@ -413,7 +481,9 @@ function unusedSnippets(files: ThemeFileInput[]): Finding[] {
     .filter((file) => {
       const name = file.filename.slice("snippets/".length, -".liquid".length);
       const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      return !new RegExp(`(render|include)\\s+['"]${escaped}['"]|["']${escaped}["']`).test(corpus);
+      return !new RegExp(
+        `(render|include)\\s+['"]${escaped}['"]|["']${escaped}["']`,
+      ).test(corpus);
     })
     .map((file) => ({
       id: `unused:${file.filename}`,
@@ -425,34 +495,46 @@ function unusedSnippets(files: ThemeFileInput[]): Finding[] {
       current: null,
       fix: null,
       why: "No other theme file renders this snippet. Unused files don't slow the page by themselves, but leftover app snippets are often still referenced by old script or style tags. Removing them keeps the theme tidy.",
-      steps: [
-        DUPLICATE_STEP,
-        "Search the theme code for the snippet name to be sure it isn't used, and check the app it came from is uninstalled.",
-        EDIT_CODE_STEP,
-        `Delete ${file.filename} only if you're sure. If unsure, leave it — it does no harm.`,
-      ],
+      steps: [],
+      resolution: UNRESOLVED,
     }));
 }
 
 /* ------------------------------------------------------------------ */
 
-export function auditTheme(files: ThemeFileInput[], measurements: MinifyMeasurement[] = []) {
+export function auditTheme(
+  files: ThemeFileInput[],
+  measurements: MinifyMeasurement[] = [],
+) {
   const findings: Finding[] = [];
   for (const file of files) {
     if (!file.content) continue;
     if (/^layout\/.+\.liquid$/.test(file.filename)) {
       findings.push(...renderBlockingScripts(file), ...preconnectFinding(file));
     }
-    if (/^(sections|snippets|blocks|layout|templates)\/.+\.liquid$/.test(file.filename)) {
+    if (
+      /^(sections|snippets|blocks|layout|templates)\/.+\.liquid$/.test(
+        file.filename,
+      )
+    ) {
       findings.push(...mediaFindings(file), ...fontFindings(file));
     }
     if (/^assets\/.+\.css(\.liquid)?$/i.test(file.filename)) {
       findings.push(...fontFindings(file));
     }
   }
-  findings.push(...largeAssetImages(files), ...minifyFindings(measurements), ...unusedSnippets(files));
+  findings.push(
+    ...largeAssetImages(files),
+    ...minifyFindings(measurements),
+    ...unusedSnippets(files),
+  );
+  for (const finding of findings)
+    Object.assign(finding, resolutionFor(finding));
   findings.sort(
-    (a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || a.file.localeCompare(b.file) || (a.line ?? 0) - (b.line ?? 0),
+    (a, b) =>
+      SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] ||
+      a.file.localeCompare(b.file) ||
+      (a.line ?? 0) - (b.line ?? 0),
   );
   return findings;
 }

@@ -8,7 +8,6 @@ import { getVerifiedSubscription } from "../billing/billing.server";
 import { readStoredReport } from "../performance/lighthouse-report";
 import {
   listThemes,
-  minifiedCopy,
   runThemeAudit,
   validateThemeId,
   type ThemeSummary,
@@ -83,10 +82,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (intent === "audit") {
       return { ok: true as const, intent: "audit" as const, audit: await runThemeAudit(admin, themeId) };
     }
-    if (intent === "minified") {
-      const filename = String(form.get("filename") ?? "");
-      return { ok: true as const, intent: "minified" as const, file: await minifiedCopy(admin, themeId, filename) };
-    }
     return { ok: false as const, intent: "error" as const, error: "Unsupported action." };
   } catch (error) {
     return {
@@ -111,43 +106,7 @@ const CATEGORY_ICON: Record<Category, IconName> = {
   cleanup: "stack",
 };
 
-function codeEditorUrl(shop: string, themeId: string, file: string) {
-  const numericId = themeId.split("/").pop();
-  const url = new URL(`https://${shop}/admin/themes/${numericId}`);
-  url.searchParams.set("key", file);
-  return url.toString();
-}
-
-function MinifiedViewer({ themeId, filename }: { themeId: string; filename: string }) {
-  const fetcher = useFetcher<typeof action>();
-  const file = fetcher.data?.ok && fetcher.data.intent === "minified" ? fetcher.data.file : null;
-  const error = fetcher.data && !fetcher.data.ok ? fetcher.data.error : null;
-  if (file) {
-    return (
-      <div className="sb-grid" style={{ gap: 8 }}>
-        <p className="sb-help">
-          Minified copy of <code>{file.filename}</code>: {formatBytes(file.minifiedBytes)} (was {formatBytes(file.sourceBytes)}).
-        </p>
-        <CodeBlock code={file.code} label="Minified file" maxHeight={320} />
-      </div>
-    );
-  }
-  return (
-    <div>
-      <button
-        type="button"
-        className="sb-btn sb-btn-secondary"
-        disabled={fetcher.state !== "idle"}
-        onClick={() => fetcher.submit({ intent: "minified", themeId, filename }, { method: "post" })}
-      >
-        {fetcher.state !== "idle" ? <><Spinner /> Preparing…</> : <><Icon name="code" size={15} /> Show minified file</>}
-      </button>
-      {error ? <p className="sb-help sb-text-fail" style={{ marginTop: 6 }}>{error}</p> : null}
-    </div>
-  );
-}
-
-function FindingCard({ finding, shop, themeId }: { finding: Finding; shop: string; themeId: string }) {
+function FindingCard({ finding }: { finding: Finding }) {
   return (
     <li>
       <details className="sb-finding">
@@ -179,20 +138,37 @@ function FindingCard({ finding, shop, themeId }: { finding: Finding; shop: strin
               </div>
             </div>
           ) : null}
-          {finding.current ? <CodeBlock code={finding.current} label="Current code" tone="muted" /> : null}
-          {finding.fix ? <CodeBlock code={finding.fix} label="Fixed code" /> : null}
-          {finding.bytes ? <MinifiedViewer themeId={themeId} filename={finding.file} /> : null}
           <div>
-            <h4>How to fix it</h4>
+            <h4>What you can do</h4>
             <ol className="sb-steps-list">
               {finding.steps.map((step) => <li key={step}>{step}</li>)}
             </ol>
           </div>
-          <div className="sb-cardActions">
-            <a className="sb-btn sb-btn-secondary" href={codeEditorUrl(shop, themeId, finding.file)} target="_blank" rel="noreferrer">
-              Open in code editor <Icon name="external" size={14} />
-            </a>
-          </div>
+          {finding.resolution.type === "booster" ? (
+            <div className="sb-cardActions">
+              <Link className="sb-btn sb-btn-primary" to="/app/speed">
+                <Icon name="bolt" size={15} /> Turn on “{finding.resolution.label}”
+              </Link>
+            </div>
+          ) : finding.resolution.type === "settings" ? (
+            <div className="sb-cardActions">
+              <Link className="sb-btn sb-btn-secondary" to="/app/images">
+                <Icon name="image" size={15} /> Open Image compressor
+              </Link>
+            </div>
+          ) : finding.current || finding.fix ? (
+            <details className="sb-techDetail">
+              <summary>Technical detail for your theme developer</summary>
+              <div className="sb-grid" style={{ gap: 10, marginTop: 10 }}>
+                <p className="sb-help">
+                  Location: <code>{finding.file}{finding.line ? `, line ${finding.line}` : ""}</code>. SpeedBoost doesn&apos;t
+                  change theme code; this is information for whoever maintains your theme.
+                </p>
+                {finding.current ? <CodeBlock code={finding.current} label="Found in the theme" tone="muted" copyable={false} /> : null}
+                {finding.fix ? <CodeBlock code={finding.fix} label="Suggested change" copyable={false} /> : null}
+              </div>
+            </details>
+          ) : null}
         </div>
       </details>
     </li>
@@ -228,7 +204,7 @@ export default function ThemeAuditPage() {
           icon="code"
           eyebrow="Read-only · your theme is never changed"
           title="Theme audit"
-          description="SpeedBoost reads your theme and lists what slows it down, in plain language, with copy-paste fixes and step-by-step instructions you or your developer can follow."
+          description="SpeedBoost reads your theme and explains, in plain language, what slows it down. Many findings can be fixed with a Speed booster in one click; the rest are reported for your theme developer or theme provider."
           actions={
             <>
               <Link className="sb-btn sb-btn-secondary" to="/app/speed"><Icon name="bolt" size={16} />Speed boosters</Link>
@@ -324,7 +300,7 @@ export default function ThemeAuditPage() {
             <Card
               icon="checkCircle"
               title={`2. Recommendations for ${audit.theme.name}`}
-              subtitle="Open a recommendation to see why it matters and exactly how to fix it. Work from the top: the list is sorted by impact."
+              subtitle="Open a finding to see why it matters and what you can do. The list is sorted by impact."
             >
               {audit.findings.length === 0 ? (
                 <EmptyState icon="checkCircle" title="No issues found">
@@ -341,7 +317,7 @@ export default function ThemeAuditPage() {
                     ))}
                   </div>
                   <ul className="sb-findings">
-                    {visible.map((finding) => <FindingCard key={finding.id} finding={finding} shop={data.shop} themeId={audit.theme.id} />)}
+                    {visible.map((finding) => <FindingCard key={finding.id} finding={finding} />)}
                   </ul>
                 </>
               )}
@@ -349,8 +325,8 @@ export default function ThemeAuditPage() {
             </Card>
 
             <Banner tone="info" title="SpeedBoost never edits your theme">
-              Changes are made only by you or your developer in Shopify&apos;s code editor. Always duplicate the theme
-              first, then run a Speed audit before and after to measure the difference.
+              Use Speed boosters for fixes that need no code. Findings in your theme&apos;s own code are for your theme
+              developer or provider, and theme updates often include them. Run a Speed audit before and after any change.
             </Banner>
           </>
         ) : null}

@@ -28,9 +28,12 @@ undoes it immediately.
   theme fonts, prefetch pages visitors are about to open, page-stability
   styles and a loading bar.
 - Read-only theme audit: finds blocking scripts, oversized CSS/JS, images
-  and embeds that load too early, and font issues — each with a plain
-  explanation, copy-paste fix and step-by-step instructions. The app never
-  edits theme files.
+  and embeds that load too early, and font issues — each explained in
+  plain language, with a one-click Speed booster where one applies. The
+  app never edits theme files or asks merchants to edit code.
+- Image compressor: shrink images in Content → Files without visible
+  quality loss, with before/after preview, quality check and one-click
+  restore.
 - History and trends of every audit.
 
 Results vary by theme, apps and content. Lighthouse scores change slightly

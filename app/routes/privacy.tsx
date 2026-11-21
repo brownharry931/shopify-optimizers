@@ -42,6 +42,10 @@ export default function PrivacyPolicy() {
           Records of theme changes made by earlier versions of the app are kept until you uninstall.
         </li>
         <li>
+          <strong>Image compressor backups:</strong> when you compress an image, a copy of the original file is kept
+          so you can restore it. The copy is removed when you restore the image or uninstall the app.
+        </li>
+        <li>
           <strong>Subscription status:</strong> your plan status as reported by Shopify. Payments are handled by
           Shopify; we never receive card details.
         </li>

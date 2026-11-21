@@ -44,8 +44,18 @@ No Shopify API secret, Partner API access token, database password, merchant/cus
   the `performance-pro-embed` app embed and are configured in the app; the
   settings are stored in an app-owned metafield. Disabling the embed or
   uninstalling the app removes them.
+- `write_files` is used by the Image compressor: it lists images in
+  Content → Files and replaces an image's content in place with `fileUpdate`
+  (same file ID and URL), after a quality check. The original is backed up
+  and can be restored with one click. Theme files are never touched.
 - `write_app_proxy` is used for the embed's once-a-day heartbeat through the
   app proxy. No other scopes are requested.
+- The Theme audit never asks merchants to edit theme code (requirement
+  5.1.1): findings either link to the Speed booster that fixes them, point to
+  a normal admin setting, or are reported for the theme's developer/provider.
+- Onboarding for the app embed (requirement 5.1.3) is the in-app **Setup
+  guide** (`/app/setup`): theme selection, deep link with `activateAppId`,
+  where the embed runs, configuration and deactivation steps, illustrations.
 - Billing uses Shopify App Pricing, verified with the Partner API.
 - Mandatory compliance webhooks are handled at `/webhooks/compliance`;
   `app/uninstalled` deletes all shop data.

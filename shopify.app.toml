@@ -13,11 +13,15 @@ prefix = "apps"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-# Only what the code uses: read_themes (app-embed detection and the
-# read-only theme audit) and write_app_proxy (storefront heartbeat through
-# the app proxy). SpeedBoost never writes theme files. Shop info and
-# app-installation metafields need no scope.
-scopes = "read_themes,write_app_proxy"
+# Only what the code uses:
+# - read_themes: app-embed detection and the read-only theme audit
+#   (SpeedBoost never writes theme files)
+# - write_files: Image compressor — list images in Content → Files and
+#   replace an image's content in place with fileUpdate (keeps its URL),
+#   including restoring the original
+# - write_app_proxy: storefront heartbeat through the app proxy
+# Shop info and app-installation metafields need no scope.
+scopes = "read_themes,write_files,write_app_proxy"
 optional_scopes = [ ]
 use_legacy_install_flow = false
 

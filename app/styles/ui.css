@@ -1593,7 +1593,7 @@
 /* Quick action tiles */
 .sb-actionsGrid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 12px;
 }
 
@@ -2442,4 +2442,237 @@ i.sb-chartSeries-b {
   .sb-finding > summary > .sb-listIcon {
     display: none;
   }
+}
+
+/* ---------- Image compressor ------------------------------------------- */
+
+.sb-btnSm {
+  min-height: 30px;
+  padding: 4px 10px;
+  font-size: 12.5px;
+}
+
+.sb-linkButton {
+  padding: 0;
+  border: 0;
+  color: var(--sb-accent);
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.sb-imageGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sb-imageTile {
+  display: grid;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--sb-line);
+  border-radius: 12px;
+  background: var(--sb-surface);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sb-imageTile[data-selected="true"] {
+  border-color: var(--sb-accent);
+  box-shadow: 0 0 0 1px var(--sb-accent);
+}
+
+.sb-imageThumb {
+  position: relative;
+  display: block;
+  aspect-ratio: 4 / 3;
+  background: repeating-conic-gradient(#f1f3f6 0% 25%, #fff 0% 50%) 50% / 14px 14px;
+  cursor: pointer;
+}
+
+.sb-imageThumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.sb-imageThumb input {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 1;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--sb-accent);
+}
+
+.sb-imageInfo {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px 12px;
+}
+
+.sb-imageInfo strong {
+  overflow: hidden;
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sb-imageInfo > span {
+  color: var(--sb-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sb-imageStatus {
+  margin-top: 4px;
+}
+
+.sb-choiceGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.sb-choice {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--sb-line-strong);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.sb-choice input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sb-choice span {
+  color: var(--sb-muted);
+  font-size: 12.5px;
+}
+
+.sb-choice[data-selected="true"] {
+  border-color: var(--sb-ink);
+  box-shadow: 0 0 0 1px var(--sb-ink);
+}
+
+.sb-choice:has(input:focus-visible) {
+  box-shadow: var(--sb-focus);
+}
+
+.sb-compare {
+  display: grid;
+  gap: 8px;
+}
+
+.sb-compareStage {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--sb-line);
+  border-radius: 10px;
+  background: repeating-conic-gradient(#f1f3f6 0% 25%, #fff 0% 50%) 50% / 14px 14px;
+}
+
+.sb-compareStage img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 520px;
+  object-fit: contain;
+  user-select: none;
+}
+
+.sb-compareStage .sb-compareBefore {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+}
+
+.sb-compareLine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(11, 18, 32, 0.35);
+  transform: translateX(-1px);
+  pointer-events: none;
+}
+
+.sb-compareTag {
+  position: absolute;
+  top: 10px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  color: #fff;
+  background: rgba(11, 18, 32, 0.72);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.sb-compareTag-left {
+  left: 10px;
+}
+
+.sb-compareTag-right {
+  right: 10px;
+}
+
+.sb-compareRange {
+  width: 100%;
+  accent-color: var(--sb-ink);
+}
+
+/* ---------- Setup guide -------------------------------------------------- */
+
+.sb-themeOptionTall {
+  align-items: flex-start;
+}
+
+.sb-guideStep {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 420px);
+  align-items: start;
+  gap: 20px;
+}
+
+.sb-illustration {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.sb-illustration svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 10px;
+  box-shadow: var(--sb-shadow-lg);
+}
+
+.sb-illustration figcaption {
+  color: var(--sb-subtle);
+  font-size: 11.5px;
+}
+
+@media (max-width: 720px) {
+  .sb-guideStep {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.sb-techDetail > summary {
+  color: var(--sb-ink-2);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
 }
