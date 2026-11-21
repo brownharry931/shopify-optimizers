@@ -1944,282 +1944,6 @@ i.sb-chartSeries-b {
 }
 
 /* ==========================================================================
-   Theme optimizer (existing workflow markup)
-   ========================================================================== */
-
-.pp-scanPanel > h2,
-.pp-scanPanelHeader h2 {
-  font-size: 16px !important;
-  font-weight: 650 !important;
-}
-
-.pp-scanPanel > p,
-.pp-scanPanel > h2 + p {
-  margin-top: 6px;
-  color: var(--sb-muted);
-  font-size: 13px;
-  line-height: 1.55;
-}
-
-.pp-scanPanel h3,
-.pp-scanPanel h4 {
-  margin: 18px 0 8px;
-  font-size: 14px !important;
-}
-
-.pp-scanPanelHeader {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px 16px;
-}
-
-.pp-scanPanelHeader p {
-  margin-top: 4px;
-  color: var(--sb-muted);
-  font-size: 13px;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-
-.pp-eyebrow {
-  margin: 0 0 4px;
-  color: var(--sb-muted);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.pp-optimizeForm {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 12px;
-  margin-top: 14px;
-}
-
-.pp-optimizeForm + .pp-optimizeForm {
-  margin-top: 12px;
-}
-
-.pp-optimizeForm label {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-}
-
-.pp-optimizeForm .pp-scanButton,
-.pp-optimizeForm .pp-secondaryButton {
-  min-height: 40px;
-  min-width: 220px;
-}
-
-.pp-optimizeButtonRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.pp-optimizeButtonRow > button {
-  flex: 1 1 190px;
-  min-width: 0;
-  white-space: normal;
-}
-
-.pp-scanMetrics {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-  margin: 14px 0;
-}
-
-.pp-scanMetrics article {
-  min-width: 0;
-  padding: 12px 14px;
-  border: 1px solid var(--sb-line);
-  border-radius: 10px;
-  background: var(--sb-surface-2);
-}
-
-.pp-scanMetrics article > span {
-  display: block;
-  color: var(--sb-muted);
-  font-size: 12px;
-  font-weight: 550;
-}
-
-.pp-scanMetrics strong {
-  display: block;
-  margin: 4px 0;
-  font-size: 20px;
-  font-weight: 650;
-  font-variant-numeric: tabular-nums;
-}
-
-.pp-scanMetrics strong small {
-  margin-left: 3px;
-  color: var(--sb-muted);
-  font-size: 12px;
-}
-
-.pp-scanMetrics article p {
-  color: var(--sb-muted);
-  font-size: 11.5px;
-  line-height: 1.45;
-}
-
-.pp-codePreview {
-  margin-top: 14px;
-  overflow: hidden;
-  border: 1px solid var(--sb-line);
-  border-radius: 10px;
-}
-
-.pp-codePreview summary {
-  padding: 11px 14px;
-  background: var(--sb-surface-2);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.pp-codePreview pre {
-  max-height: 360px;
-  margin: 0;
-  padding: 14px;
-  overflow: auto;
-  color: #e6edf6;
-  background: #0f1623;
-  font-family: var(--sb-mono);
-  font-size: 12px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.pp-applyForm,
-.pp-rollbackForm {
-  display: grid;
-  justify-items: start;
-  gap: 12px;
-  margin-top: 14px;
-  padding: 14px;
-  border: 1px solid var(--sb-line);
-  border-radius: 10px;
-  background: var(--sb-surface-2);
-}
-
-.pp-applyForm label,
-.pp-rollbackForm label {
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  color: var(--sb-ink-2);
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1.5;
-}
-
-.pp-applyForm input[type="checkbox"],
-.pp-rollbackForm input[type="checkbox"] {
-  flex: 0 0 auto;
-  width: 16px;
-  height: 16px;
-  margin-top: 2px;
-  accent-color: var(--sb-ink);
-}
-
-.pp-changeHistory {
-  display: grid;
-  gap: 10px;
-  margin: 14px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.pp-changeHistory > li {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 14px;
-  border: 1px solid var(--sb-line);
-  border-radius: 10px;
-}
-
-.pp-changeHistory > li > div {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-
-.pp-changeHistory span,
-.pp-changeHistory small {
-  color: var(--sb-muted);
-  font-size: 12px;
-  overflow-wrap: anywhere;
-}
-
-.pp-changeHistory p {
-  font-size: 12.5px;
-}
-
-.pp-imageInspection {
-  margin-top: 18px;
-  padding-top: 16px;
-  border-top: 1px solid var(--sb-line);
-}
-
-.pp-imageInspection > p {
-  color: var(--sb-muted);
-  font-size: 13px;
-  line-height: 1.55;
-}
-
-.pp-imageCandidates {
-  display: grid;
-  gap: 10px;
-  margin: 14px 0;
-  padding-left: 22px;
-}
-
-.pp-imageCandidates > li {
-  padding: 12px;
-  border: 1px solid var(--sb-line);
-  border-radius: 10px;
-  background: var(--sb-surface-2);
-}
-
-.pp-imageCandidates > li > div {
-  display: grid;
-  gap: 6px;
-}
-
-.pp-imageCandidates pre {
-  max-height: 100px;
-  margin: 0;
-  padding: 10px;
-  overflow: auto;
-  border-radius: 8px;
-  background: var(--sb-surface-3);
-  font-family: var(--sb-mono);
-  font-size: 11px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.pp-imageCandidates small {
-  color: var(--sb-muted);
-}
-
-.pp-imageLazyForm p {
-  color: var(--sb-muted);
-  font-size: 13px;
-  line-height: 1.55;
-}
-
-/* ==========================================================================
    Responsive
    ========================================================================== */
 
@@ -2441,4 +2165,281 @@ i.sb-chartSeries-b {
   width: 35%;
   background: #1b4dff;
   animation: sb-indeterminate 1s ease-in-out infinite;
+}
+
+/* ---------- Code viewer ------------------------------------------------- */
+
+.sb-codeBlock {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--sb-line);
+  border-radius: 10px;
+}
+
+.sb-codeHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 6px 4px 12px;
+  border-bottom: 1px solid var(--sb-line);
+  background: var(--sb-surface-2);
+  color: var(--sb-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sb-codeCopy {
+  min-height: 28px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.sb-codeBlock pre {
+  margin: 0;
+  padding: 12px 14px;
+  overflow: auto;
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+  tab-size: 2;
+}
+
+.sb-codeBlock-dark pre {
+  color: #e6edf6;
+  background: #0f1623;
+}
+
+.sb-codeBlock-muted pre {
+  color: var(--sb-ink-2);
+  background: var(--sb-surface);
+}
+
+.sb-codeBlock pre code {
+  padding: 0;
+  background: none;
+  color: inherit;
+}
+
+/* ---------- Theme audit ------------------------------------------------- */
+
+.sb-themePicker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.sb-themeOption {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--sb-line-strong);
+  border-radius: 10px;
+  background: var(--sb-surface);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sb-themeOption input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sb-themeOption[data-selected="true"] {
+  border-color: var(--sb-ink);
+  box-shadow: 0 0 0 1px var(--sb-ink);
+}
+
+.sb-themeOption:has(input:focus-visible) {
+  box-shadow: var(--sb-focus);
+}
+
+.sb-themeName {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sb-findings {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sb-finding {
+  border: 1px solid var(--sb-line);
+  border-radius: 12px;
+  background: var(--sb-surface);
+}
+
+.sb-finding[open] {
+  box-shadow: var(--sb-shadow-lg);
+}
+
+.sb-finding > summary {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  list-style: none;
+  cursor: pointer;
+}
+
+.sb-finding > summary::-webkit-details-marker {
+  display: none;
+}
+
+.sb-finding > summary:focus-visible {
+  outline: none;
+  box-shadow: var(--sb-focus);
+  border-radius: 12px;
+}
+
+.sb-finding[open] .sb-chevron {
+  transform: rotate(180deg);
+}
+
+.sb-findingHead {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sb-findingHead strong {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.sb-findingMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+.sb-findingMeta code {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sb-findingBody {
+  display: grid;
+  gap: 14px;
+  padding: 4px 14px 16px 62px;
+}
+
+.sb-findingBody h4 {
+  margin-bottom: 4px !important;
+  font-size: 13px !important;
+}
+
+.sb-findingBody p {
+  color: var(--sb-ink-2);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.sb-steps-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 20px;
+  color: var(--sb-ink-2);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.sb-sev-high {
+  color: var(--sb-fail-ink);
+  background: var(--sb-fail-bg);
+}
+
+.sb-sev-medium {
+  color: var(--sb-average-ink);
+  background: var(--sb-average-bg);
+}
+
+.sb-sev-low {
+  color: var(--sb-accent-ink);
+  background: var(--sb-accent-soft);
+}
+
+.sb-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.sb-dot-high {
+  background: var(--sb-fail);
+}
+
+.sb-dot-medium {
+  background: var(--sb-average);
+}
+
+.sb-dot-low {
+  background: var(--sb-accent);
+}
+
+.sb-sizeCompare {
+  display: grid;
+  gap: 8px;
+  max-width: 460px;
+}
+
+.sb-sizeCompare > div {
+  display: grid;
+  grid-template-columns: 80px 90px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+}
+
+.sb-sizeCompare span {
+  color: var(--sb-muted);
+}
+
+.sb-sizeCompare strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.sb-sizeCompare i {
+  display: block;
+  height: 8px;
+  border-radius: 999px;
+  background: #c7cdd8;
+}
+
+.sb-sizeCompare i.sb-barGood {
+  background: var(--sb-pass);
+}
+
+@media (max-width: 720px) {
+  .sb-findingBody {
+    padding-left: 14px;
+  }
+
+  .sb-finding > summary {
+    grid-template-columns: minmax(0, 1fr) 18px;
+  }
+
+  .sb-finding > summary > .sb-listIcon {
+    display: none;
+  }
 }

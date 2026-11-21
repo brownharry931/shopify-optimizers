@@ -140,7 +140,7 @@ function SetupItem({
 const QUICK_ACTIONS: Array<{ href: string; icon: IconName; title: string; text: string }> = [
   { href: "/app/scan", icon: "gauge", title: "Speed audit", text: "Lighthouse report for any page, on mobile and desktop." },
   { href: "/app/speed", icon: "bolt", title: "Speed boosters", text: "Delay scripts, instant page loads, LCP preload, fonts and more." },
-  { href: "/app/optimize", icon: "code", title: "Theme optimizer", text: "Minify CSS/JS, defer scripts and lazy-load images on a draft theme." },
+  { href: "/app/optimize", icon: "code", title: "Theme audit", text: "Find unminified files, blocking scripts and unlazy images, with copy-paste fixes." },
   { href: "/app/reports", icon: "chart", title: "Reports", text: "Score trends and before/after comparisons over time." },
 ];
 
@@ -275,11 +275,11 @@ export default function Dashboard() {
 
         <div className="sb-actionsGrid">
           {QUICK_ACTIONS.map((action) => (
-            <a key={action.href} className="sb-actionTile" href={action.href}>
+            <Link key={action.href} className="sb-actionTile" to={action.href}>
               <span><Icon name={action.icon} size={18} /></span>
               <strong>{action.title}<Icon name="arrowRight" size={15} /></strong>
               <p>{action.text}</p>
-            </a>
+            </Link>
           ))}
         </div>
 

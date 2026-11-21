@@ -25,7 +25,7 @@ export default function App() {
         <s-link href="/app">Dashboard</s-link>
         <s-link href="/app/scan">Speed audit</s-link>
         <s-link href="/app/speed">Speed boosters</s-link>
-        <s-link href="/app/optimize">Theme optimizer</s-link>
+        <s-link href="/app/optimize">Theme audit</s-link>
         <s-link href="/app/reports">Reports</s-link>
         <s-link href="/app/billing">Billing</s-link>
       </s-app-nav>

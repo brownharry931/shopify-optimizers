@@ -27,14 +27,10 @@ const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,
   apiSecretKey: process.env.SHOPIFY_API_SECRET || "",
   apiVersion: ApiVersion.October26,
-  // Keep the request least-privileged and aligned with shopify.app.toml.
-  // write_themes also requires Shopify's public-app theme API exemption before writes are available.
-  // write_app_proxy is required because this app has an App Proxy configured.
-  scopes: [
-    "read_themes",
-    "write_themes",
-    "write_app_proxy",
-  ],
+  // Least privilege, aligned with shopify.app.toml: read_themes for embed
+  // detection and the read-only theme audit; write_app_proxy for the
+  // storefront heartbeat. The app never writes theme files.
+  scopes: ["read_themes", "write_app_proxy"],
   appUrl: process.env.SHOPIFY_APP_URL || "",
   authPathPrefix: "/auth",
   sessionStorage: new PrismaSessionStorage(prisma),

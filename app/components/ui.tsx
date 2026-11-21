@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Fragment } from "react";
+import { Fragment, useId, useState } from "react";
 import { Icon, type IconName } from "./icons";
 import {
   ratingForDisplayScore,
@@ -374,5 +374,49 @@ export function Time({ value, relative = false }: { value: string | null | undef
     <time dateTime={value} title={formatDateTime(value)} suppressHydrationWarning>
       {relative ? relativeTime(value) : formatDateTime(value)}
     </time>
+  );
+}
+
+/** Read-only code viewer with a copy button. */
+export function CodeBlock({
+  code,
+  label,
+  tone = "dark",
+  maxHeight = 220,
+}: {
+  code: string;
+  label?: string;
+  tone?: "dark" | "muted";
+  maxHeight?: number;
+}) {
+  const [copied, setCopied] = useState(false);
+  const preId = useId();
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      // Clipboard blocked: select the text so the merchant can copy manually.
+      const range = document.createRange();
+      const node = document.getElementById(preId);
+      if (node) {
+        range.selectNodeContents(node);
+        window.getSelection()?.removeAllRanges();
+        window.getSelection()?.addRange(range);
+      }
+    }
+  };
+  return (
+    <div className={`sb-codeBlock sb-codeBlock-${tone}`}>
+      <div className="sb-codeHead">
+        <span>{label}</span>
+        <button type="button" className="sb-btn sb-btn-ghost sb-codeCopy" onClick={copy}>
+          <Icon name={copied ? "check" : "stack"} size={14} />
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+      <pre style={{ maxHeight }} id={preId}>{code}</pre>
+    </div>
   );
 }

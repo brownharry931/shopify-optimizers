@@ -447,9 +447,9 @@ function ImageSavings({ report }: { report: LighthouseReport }) {
         </div>
       ) : null}
       <p className="sb-footnote" style={{ marginTop: 12 }}>
-        To serve the smaller version, the theme must request it: use <Link to="/app/optimize">Theme optimizer</Link> for
-        lazy loading and responsive <code>image_url</code> widths, or ask your theme developer to add a matching{" "}
-        <code>srcset</code>. Re-run the audit afterwards to confirm the gain.
+        To serve the smaller version, the theme must request it: check <Link to="/app/optimize">Theme audit</Link> for
+        images without lazy loading, and ask your theme developer to use responsive <code>image_url</code> widths with a
+        matching <code>srcset</code>. Re-run the audit afterwards to confirm the gain.
       </p>
     </Card>
   );

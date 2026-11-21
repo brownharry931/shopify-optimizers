@@ -11,9 +11,9 @@
 4. **Speed boosters**: switch on a setting (for example *Lazy-load videos &
    embeds*), click **Save**, and open the storefront. Turning it off and
    saving removes the behaviour on the next page view.
-5. **Theme optimizer**: pick an unpublished theme to preview CSS/JS
-   minification; changes are only written to unpublished or development
-   themes and can be rolled back.
+5. **Theme audit**: choose a theme and click **Run theme audit**. The app
+   reads the theme (read_themes only) and lists recommendations with
+   copy-paste fixes. It never writes theme files.
 6. **Reports** lists completed audits with trends.
 
 Uninstalling deletes the app's stored data. The app embed stops running

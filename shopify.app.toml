@@ -13,15 +13,16 @@ prefix = "apps"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-# Only what the code uses: themes (embed detection, draft-theme optimizer)
-# and the app proxy (storefront heartbeat). Shop info and app-installation
-# metafields need no scope.
-scopes = "read_themes,write_themes,write_app_proxy"
+# Only what the code uses: read_themes (app-embed detection and the
+# read-only theme audit) and write_app_proxy (storefront heartbeat through
+# the app proxy). SpeedBoost never writes theme files. Shop info and
+# app-installation metafields need no scope.
+scopes = "read_themes,write_app_proxy"
 optional_scopes = [ ]
 use_legacy_install_flow = false
 
-# Required from December 1, 2026 for apps with a theme app extension, an app
-# proxy or write_themes. The storefront runtime loads embed.js from Shopify's
+# Required from December 1, 2026 for apps with a theme app extension or an
+# app proxy. The storefront runtime loads embed.js from Shopify's
 # CDN and only calls the app proxy on the store's own domain, so it contacts
 # no external servers. Add an https origin here if that ever changes.
 [network_access]

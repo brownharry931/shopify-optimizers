@@ -10,28 +10,28 @@ const guidanceByAuditId: Record<string, FindingGuidance> = {
     nextStep:
       "Review the exact resources and their dependencies before changing load order. Deferring CSS can cause unstyled content; delaying scripts can break cart, consent, analytics, or app features.",
     automation:
-      "The Optimization Center can preview CSS/JavaScript minification and defer a limited set of static first-party theme scripts on an unpublished/development theme. No storefront change was made by this audit.",
+      "Theme audit lists every blocking theme script with the exact line to change, and the size each file would have when minified. Speed boosters → Optimize Shopify apps delays third-party scripts without code changes.",
   },
   "unused-css-rules": {
     area: "CSS",
     nextStep:
       "Treat this as a page-and-state-specific clue, not proof that a stylesheet is safe to delete. Check menus, variants, cart, responsive layouts, and app blocks before removal.",
     automation:
-      "CSS minification is available as a draft-theme preview, but unused CSS is not deleted automatically; one Lighthouse page cannot prove a rule is unused across all pages and states.",
+      "Theme audit measures how much each stylesheet shrinks when minified and gives a copy-ready minified file. Unused CSS is never removed automatically; one Lighthouse page cannot prove a rule is unused everywhere.",
   },
   "unused-javascript": {
     area: "JavaScript",
     nextStep:
       "Identify the script owner and test all storefront interactions before changing it. One Lighthouse page load cannot establish that code is unused on every page or state.",
     automation:
-      "Speed boosters → Optimize Shopify apps and Defer tracking & chat hold third-party scripts until the first interaction. The Theme optimizer can add `defer` to compatible static theme scripts on a draft theme.",
+      "Speed boosters → Optimize Shopify apps and Defer tracking & chat hold third-party scripts until the first interaction. Theme audit shows which theme scripts block the page and the exact `defer` fix.",
   },
   "uses-optimized-images": {
     area: "Images",
     nextStep:
       "Inspect the image candidates, their rendered dimensions, and whether each is above the fold before choosing a responsive Shopify CDN variant.",
     automation:
-      "The Optimization Center can inspect selected Liquid sections/snippets and preview lazy loading for files you confirm are below the fold. It does not change image files or infer whether an image is above the fold.",
+      "The image section below compares today's bytes with a right-sized Shopify CDN version. Theme audit lists <img> tags without lazy loading or dimensions, with copy-paste fixes.",
   },
   "modern-image-formats": {
     area: "Images",
@@ -45,21 +45,21 @@ const guidanceByAuditId: Record<string, FindingGuidance> = {
     nextStep:
       "Compare rendered image size with the viewport and preserve existing `srcset`, `sizes`, aspect ratio, and gallery behavior.",
     automation:
-      "The Optimization Center can preview loading hints for selected Shopify `image_tag` expressions; it does not resize or convert image files and does not rewrite raw `<img>` markup.",
+      "Theme audit points to images without lazy loading or dimensions. Use Shopify's `image_url` / `image_tag` filters with `widths` and `sizes` so each screen gets the right size.",
   },
   "largest-contentful-paint-element": {
     area: "LCP resource",
     nextStep:
       "Verify that the reported element is the intended hero or product image on both mobile and desktop before prioritizing it.",
     automation:
-      "The Optimization Center can preview eager loading and high fetch priority for one exact Shopify `image_tag` expression after you verify it is the LCP element; the audit itself makes no theme change.",
+      "On product pages, Speed boosters → Preload LCP image fetches the main image early. Make sure this element is not lazy-loaded; Theme audit shows lazy images.",
   },
   "lcp-discovery": {
     area: "LCP resource discovery",
     nextStep:
       "Check whether the LCP image is discoverable in the initial document and whether lazy loading or script insertion delays it.",
     automation:
-      "On product pages, Speed boosters → Preload LCP image fetches the featured image from the <head> at high priority. Elsewhere, the Theme optimizer can set eager loading and high fetch priority on the exact Shopify `image_tag` you identify.",
+      "On product pages, Speed boosters → Preload LCP image fetches the featured image from the <head> at high priority. Elsewhere, make sure this image is not lazy-loaded and add `fetchpriority: 'high'` to its `image_tag`.",
   },
   "font-display": {
     area: "Fonts",
@@ -125,7 +125,7 @@ const extraGuidance: Record<string, FindingGuidance> = {
   "unminified-javascript": {
     area: "JavaScript",
     nextStep: "Minify the listed theme scripts. App-hosted files must be fixed by the app vendor.",
-    automation: "The Theme optimizer minifies theme .js assets on a draft theme with checksum-protected rollback.",
+    automation: "Theme audit measures each theme script's minified size and provides a copy-ready minified file with step-by-step instructions.",
   },
   "network-dependency-tree-insight": {
     area: "Request chains",

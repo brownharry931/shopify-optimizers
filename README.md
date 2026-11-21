@@ -32,3 +32,20 @@ The Partner API settings must also be configured as private Render environment v
 ## Safety
 
 No Shopify API secret, Partner API access token, database password, merchant/customer data, or production credentials belong in Git or chat. Never test charges or storefront changes against a live merchant store without explicit approval.
+
+## App review notes
+
+- **Theme access is read-only.** The app requests `read_themes` to detect the
+  SpeedBoost app embed in the published theme's `config/settings_data.json`
+  and to run the Theme audit (it reads layout, section, snippet and asset
+  files to produce recommendations). It does **not** request `write_themes`
+  and never writes, creates or publishes theme files.
+- **Storefront features use a theme app extension.** Speed boosters run from
+  the `performance-pro-embed` app embed and are configured in the app; the
+  settings are stored in an app-owned metafield. Disabling the embed or
+  uninstalling the app removes them.
+- `write_app_proxy` is used for the embed's once-a-day heartbeat through the
+  app proxy. No other scopes are requested.
+- Billing uses Shopify App Pricing, verified with the Partner API.
+- Mandatory compliance webhooks are handled at `/webhooks/compliance`;
+  `app/uninstalled` deletes all shop data.

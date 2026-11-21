@@ -38,8 +38,8 @@ export default function PrivacyPolicy() {
           <strong>Speed booster settings:</strong> stored by Shopify as app data on your store.
         </li>
         <li>
-          <strong>Theme optimizer history:</strong> when you choose to optimize a file in an unpublished or
-          development theme, the original file content is kept so you can roll it back.
+          <strong>Theme files:</strong> read on demand to produce the theme audit and never stored or changed.
+          Records of theme changes made by earlier versions of the app are kept until you uninstall.
         </li>
         <li>
           <strong>Subscription status:</strong> your plan status as reported by Shopify. Payments are handled by

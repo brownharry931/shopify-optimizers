@@ -108,7 +108,7 @@ const GROUPS: Array<{ id: string; icon: IconName; title: string; subtitle: strin
         caution: "Test swipe galleries on a phone: a slider that blocks page scrolling while swiping may scroll the page as well.",
       },
     ],
-    links: [{ href: "/app/optimize", label: "Minify JavaScript & CSS", text: "Shrink theme asset files on a draft theme, with checksum-safe rollback." }],
+    links: [{ href: "/app/optimize", label: "Minify recommendations", text: "See which theme CSS and JavaScript files can be smaller, with a copy-ready minified version and steps." }],
   },
   {
     id: "media",
@@ -134,7 +134,7 @@ const GROUPS: Array<{ id: string; icon: IconName; title: string; subtitle: strin
         impacts: ["LCP", "TBT", "Speed Index"],
       },
     ],
-    links: [{ href: "/app/optimize", label: "Lazy-load theme images", text: "Add native lazy loading to below-the-fold Shopify image tags in a draft theme." }],
+    links: [{ href: "/app/optimize", label: "Lazy-load recommendations", text: "See theme images and embeds that load too early, with the exact code change for each." }],
   },
   {
     id: "rendering",
@@ -355,7 +355,7 @@ export default function SpeedBoostersPage() {
                     <strong>{link.label}</strong>
                     <p>{link.text}</p>
                   </div>
-                  <a className="sb-btn sb-btn-secondary" href={link.href}>Open <Icon name="arrowRight" size={14} /></a>
+                  <Link className="sb-btn sb-btn-secondary" to={link.href}>View recommendations <Icon name="arrowRight" size={14} /></Link>
                 </li>
               ))}
             </ul>

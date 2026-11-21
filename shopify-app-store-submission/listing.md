@@ -27,8 +27,10 @@ undoes it immediately.
   visitor interacts, lazy-load video embeds, preload product images and
   theme fonts, prefetch pages visitors are about to open, page-stability
   styles and a loading bar.
-- Theme optimizer for unpublished themes: minify CSS/JS and add lazy loading
-  to images, with rollback.
+- Read-only theme audit: finds blocking scripts, oversized CSS/JS, images
+  and embeds that load too early, and font issues — each with a plain
+  explanation, copy-paste fix and step-by-step instructions. The app never
+  edits theme files.
 - History and trends of every audit.
 
 Results vary by theme, apps and content. Lighthouse scores change slightly
